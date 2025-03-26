@@ -1,4 +1,3 @@
-cat <<'EOF' > /var/www/turksatranc/server/server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
