@@ -668,11 +668,7 @@ io.on('connection', async (socket) => {
         await newGame.save();
         console.log('Yeni oyun veritabanına kaydedildi:', newGame._id);
         
-        // Aktif oyun bilgisi
-        activeGames.set(gameId, {
-          id: gameId,
-          dbId: newGame._id,
-          players: [
+        // Aktif oyun bilgisiplayers: [
             { id: whitePlayerId, color: 'white', username: whitePlayer.username },
             { id: blackPlayerId, color: 'black', username: blackPlayer.username }
           ],
@@ -684,7 +680,6 @@ io.on('connection', async (socket) => {
             [whitePlayerId.toString()]: timeInMilliseconds,
             [blackPlayerId.toString()]: timeInMilliseconds
           },
-
           lastMoveTime: Date.now(),
           currentTurn: 'white',
           messages: []
@@ -882,53 +877,57 @@ io.on('connection', async (socket) => {
       let newWhiteElo = whitePlayer.elo;
       let newBlackElo = blackPlayer.elo;
       
-      // Misafir kullanıcıları istatistik güncellemeden hariç tut
-      if (!whitePlayer.isGuest && !blackPlayer.isGuest) {
-        // Basit ELO hesaplama
-        const kFactor = 32; // ELO değişim faktörü
-        
-        // Beklenen sonuçlar
-        const expectedWhite = 1 / (1 + Math.pow(10, (blackPlayer.elo - whitePlayer.elo) / 400));
-        const expectedBlack = 1 / (1 + Math.pow(10, (whitePlayer.elo - blackPlayer.elo) / 400));
-        
-        // Gerçek sonuçlar
-        let actualWhite, actualBlack;
-        
-        if (gameResult === 'white') {
-          actualWhite = 1;
-          actualBlack = 0;
-        } else if (gameResult === 'black') {
-          actualWhite = 0;
-          actualBlack = 1;
-        } else {
-          // Berabere
-          actualWhite = 0.5;
-          actualBlack = 0.5;
-        }
-        
-        // Yeni ELO puanları
-        newWhiteElo = Math.round(whitePlayer.elo + kFactor * (actualWhite - expectedWhite));
-        newBlackElo = Math.round(blackPlayer.elo + kFactor * (actualBlack - expectedBlack));
-        
-        // Beyaz oyuncuyu güncelle - misafir olmayan oyuncular için
-        if (!whitePlayer.isGuest) {
-          const whiteUpdate = { elo: newWhiteElo, $inc: { gamesPlayed: 1 } };
-          if (whitePlayerResult === 'win') whiteUpdate.$inc.wins = 1;
-          else if (whitePlayerResult === 'loss') whiteUpdate.$inc.losses = 1;
-          else whiteUpdate.$inc.draws = 1;
+      try {
+        // Misafir kullanıcıları istatistik güncellemeden hariç tut
+        if (!whitePlayer.isGuest && !blackPlayer.isGuest) {
+          // Basit ELO hesaplama
+          const kFactor = 32; // ELO değişim faktörü
           
-          await User.findByIdAndUpdate(whitePlayer._id, whiteUpdate);
+          // Beklenen sonuçlar
+          const expectedWhite = 1 / (1 + Math.pow(10, (blackPlayer.elo - whitePlayer.elo) / 400));
+          const expectedBlack = 1 / (1 + Math.pow(10, (whitePlayer.elo - blackPlayer.elo) / 400));
+          
+          // Gerçek sonuçlar
+          let actualWhite, actualBlack;
+          
+          if (gameResult === 'white') {
+            actualWhite = 1;
+            actualBlack = 0;
+          } else if (gameResult === 'black') {
+            actualWhite = 0;
+            actualBlack = 1;
+          } else {
+            // Berabere
+            actualWhite = 0.5;
+            actualBlack = 0.5;
+          }
+          
+          // Yeni ELO puanları
+          newWhiteElo = Math.round(whitePlayer.elo + kFactor * (actualWhite - expectedWhite));
+          newBlackElo = Math.round(blackPlayer.elo + kFactor * (actualBlack - expectedBlack));
+          
+          // Beyaz oyuncuyu güncelle - misafir olmayan oyuncular için
+          if (!whitePlayer.isGuest) {
+            const whiteUpdate = { elo: newWhiteElo, $inc: { gamesPlayed: 1 } };
+            if (whitePlayerResult === 'win') whiteUpdate.$inc.wins = 1;
+            else if (whitePlayerResult === 'loss') whiteUpdate.$inc.losses = 1;
+            else whiteUpdate.$inc.draws = 1;
+            
+            await User.findByIdAndUpdate(whitePlayer._id, whiteUpdate);
+          }
+          
+          // Siyah oyuncuyu güncelle - misafir olmayan oyuncular için
+          if (!blackPlayer.isGuest) {
+            const blackUpdate = { elo: newBlackElo, $inc: { gamesPlayed: 1 } };
+            if (blackPlayerResult === 'win') blackUpdate.$inc.wins = 1;
+            else if (blackPlayerResult === 'loss') blackUpdate.$inc.losses = 1;
+            else blackUpdate.$inc.draws = 1;
+            
+            await User.findByIdAndUpdate(blackPlayer._id, blackUpdate);
+          }
         }
-        
-// Siyah oyuncuyu güncelle - misafir olmayan oyuncular için
-if (!blackPlayer.isGuest) {
-  const blackUpdate = { elo: newBlackElo, $inc: { gamesPlayed: 1 } };
-  if (blackPlayerResult === 'win') blackUpdate.$inc.wins = 1;
-  else if (blackPlayerResult === 'loss') blackUpdate.$inc.losses = 1;
-  else blackUpdate.$inc.draws = 1;
-  
-  await User.findByIdAndUpdate(blackPlayer._id, blackUpdate);
-}
+      } catch (updateError) {
+        console.error('ELO ve istatistik güncelleme hatası:', updateError);
       }
       
       // İki oyuncuya da bilgi gönder
@@ -956,7 +955,6 @@ if (!blackPlayer.isGuest) {
       
       // Aktif oyunlar listesinden kaldır
       activeGames.delete(gameId);
-      
     } catch (error) {
       console.error('Oyun bitirme hatası:', error);
       socket.emit('error', { message: 'Oyun sonlandırılırken bir hata oluştu' });
@@ -999,7 +997,6 @@ if (!blackPlayer.isGuest) {
       
       // Oyunu bitir
       socket.emit('game_over', { gameId, result: 'timeout' });
-      
     } catch (error) {
       console.error('Süre aşımı hatası:', error);
       socket.emit('error', { message: 'Süre aşımı işlenirken bir hata oluştu' });
@@ -1132,3 +1129,7 @@ process.on('unhandledRejection', (reason, promise) => {
 server.listen(PORT, () => {
   console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
 });
+        activeGames.set(gameId, {
+          id: gameId,
+          dbId: newGame._id,
+         
