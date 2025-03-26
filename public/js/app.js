@@ -2,7 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Socket.io bağlantısı - sessionId ile kimlik doğrulama
     const socket = io({
         auth: {
-            sessionId: getSessionIdFromCookie()
+            sessionId: getSessionIdFromCookie(),
+            userId: getUserIdFromPage() // Kullanıcı ID'sini de ekledik
         }
     });
     
@@ -16,6 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         return '';
+    }
+    
+    // Kullanıcı ID'sini sayfadan alma fonksiyonu
+    function getUserIdFromPage() {
+        const userElement = document.getElementById('username-display');
+        return userElement ? userElement.getAttribute('data-id') : null;
     }
     
     // Oyun durumu değişkenleri
@@ -254,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
             draggable: true,
             position: 'start',
             orientation: orientation,
-            pieceTheme: '/img/chesspieces/wikipedia/{piece}.png', // Düzeltilen yol
+            pieceTheme: '/img/chesspieces/wikipedia/{piece}.png',
             onDragStart: onDragStart,
             onDrop: onDrop,
             onSnapEnd: onSnapEnd
@@ -419,31 +426,29 @@ document.addEventListener('DOMContentLoaded', () => {
         board.position(game.fen());
     }
     
-// Eşleşme bul
-function findMatch() {
-    console.log("Eşleşme aranıyor...");
-    statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
-    setupContainer.style.display = 'none';
-    
-    // Socket bağlantı kontrolü
-    if (!socket.connected) {
-        console.error('Sunucuya bağlanılamadı!');
-        statusDiv.innerHTML = 'Sunucuya bağlanılamadı. Sayfayı yenileyin veya daha sonra tekrar deneyin.';
-        setupContainer.style.display = 'flex';
-        return;
+    // Eşleşme bul - Düzeltildi
+    function findMatch() {
+        console.log("Eşleşme aranıyor...");
+        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
+        setupContainer.style.display = 'none';
+        
+        // Socket bağlantı kontrolü
+        if (!socket.connected) {
+            console.error('Sunucuya bağlanılamadı!');
+            statusDiv.innerHTML = 'Sunucuya bağlanılamadı. Sayfayı yenileyin veya daha sonra tekrar deneyin.';
+            setupContainer.style.display = 'flex';
+            return;
+        }
+        
+        console.log("Socket bağlantı durumu:", socket.connected);
+        console.log("Socket kimliği:", socket.id);
+        console.log("Süre kontrolü:", timeControl);
+        
+        // Eşleşme ara
+        socket.emit('find_match', timeControl);
+        console.log("find_match olayı gönderildi, süre:", timeControl);
+        currentGameState = 'waiting';
     }
-    
-    console.log("Socket bağlantı durumu:", socket.connected);
-    console.log("Süre kontrolü:", timeControl);
-    
-    // Eşleşme ara
-   // Debug bilgilerini ekleyelim
-    console.log("Socket kimliği:", socket.id);
-    socket.emit('find_match', timeControl);
-    console.log("Eşleşme isteği gönderildi, süre:", timeControl);
-    console.log("find_match olayı gönderildi");
-    currentGameState = 'waiting';
-}
     
     // Eşleşme bulunduğunda
     function matchFound(data) {
