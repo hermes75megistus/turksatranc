@@ -70,7 +70,7 @@ SESSION_SECRET=turksatranc-super-secure-session-key-2025
 
 # Server Configuration
 PORT=5000
-NODE_ENV=production
+NODE_ENV=development
 EOF
 
 # package.json oluşturma
@@ -198,7 +198,7 @@ module.exports = {
     watch: false,
     max_memory_restart: "300M",
     env: {
-      NODE_ENV: "production",
+      NODE_ENV: "development",
       PORT: 5000
     },
     env_development: {
