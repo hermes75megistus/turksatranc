@@ -920,15 +920,15 @@ io.on('connection', async (socket) => {
           await User.findByIdAndUpdate(whitePlayer._id, whiteUpdate);
         }
         
-        // Siyah oyuncuyu güncelle - misafir olmayan oyuncular için
-        if (!blackPlayer.isGuest) {
-          const blackUpdate = { elo: newBlackElo, $inc: { gamesPlayed: 1 } };
-          if (blackPlayerResult === 'win') blackUpdate.$inc.wins = 1;
-          else if (blackPlayerResult === 'loss') blackUpdate.$inc.losses = 1;
-          else blackUpdate.$inc.draws = 1;
-          
-          await User.findByIdAndUpdate(blackPlayer._id, blackUpdate);
-        }
+// Siyah oyuncuyu güncelle - misafir olmayan oyuncular için
+if (!blackPlayer.isGuest) {
+  const blackUpdate = { elo: newBlackElo, $inc: { gamesPlayed: 1 } };
+  if (blackPlayerResult === 'win') blackUpdate.$inc.wins = 1;
+  else if (blackPlayerResult === 'loss') blackUpdate.$inc.losses = 1;
+  else blackUpdate.$inc.draws = 1;
+  
+  await User.findByIdAndUpdate(blackPlayer._id, blackUpdate);
+}
       }
       
       // İki oyuncuya da bilgi gönder
