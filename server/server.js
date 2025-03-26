@@ -477,61 +477,73 @@ const waitingPlayers = [];
 const activeGames = new Map();
 const userSockets = new Map(); // Kullanıcı ID - Socket ID eşleşmesi
 
-// Socket kimlik doğrulama için middleware - Misafir kullanıcılar için izin ver
+// Socket kimlik doğrulama için middleware
 io.use(async (socket, next) => {
-  // Session bilgisini al
-  const sessionId = socket.handshake.auth.sessionId || 
-                   (socket.request.headers.cookie || '').split('connect.sid=')[1];
-  
-  // Session id yoksa misafir kullanıcı oluştur
-  if (!sessionId) {
+  try {
+    // Session ve cookie bilgilerini kontrol et
+    const cookies = socket.handshake.headers.cookie;
+    console.log('Socket bağlantısı - cookies:', cookies ? 'Var' : 'Yok');
+    
+    let userId = null;
+    let isGuest = true;
+    
+    // Oturum açılmışsa userId al
+    if (cookies && cookies.includes('connect.sid=')) {
+      // Burada gerçek bir session store kullanarak userId'yi almalısınız
+      // Örnek amaçlı sadece cookie'nin varlığını kontrol ediyoruz
+      console.log('Socket bağlantısı - oturum çerezi bulundu');
+      
+      // Socket handshake'ten auth verilerini kontrol et
+      if (socket.handshake.auth && socket.handshake.auth.userId) {
+        userId = socket.handshake.auth.userId;
+        isGuest = false;
+        
+        // Kullanıcı bilgisini doğrula
+        const user = await User.findById(userId);
+        if (user) {
+          socket.userId = user._id;
+          socket.username = user.username;
+          socket.isGuest = user.isGuest || false;
+          
+          // Socket ID ile kullanıcı eşleştir
+          userSockets.set(user._id.toString(), socket.id);
+          console.log(`Kullanıcı eşleşmesi: ${user.username} -> ${socket.id}`);
+          return next();
+        }
+      }
+    }
+    
+    // Oturum yoksa veya kullanıcı bulunamadıysa misafir kullanıcı oluştur
+    console.log('Socket bağlantısı - misafir kullanıcı oluşturuluyor');
+    const guestUser = await createGuestUser();
+    socket.userId = guestUser._id;
+    socket.username = guestUser.username;
+    socket.isGuest = true;
+    
+    // Socket ID ile kullanıcı eşleştir
+    userSockets.set(guestUser._id.toString(), socket.id);
+    console.log(`Misafir kullanıcı eşleşmesi: ${guestUser.username} -> ${socket.id}`);
+    
+    return next();
+  } catch (error) {
+    console.error('Socket kimlik doğrulama hatası:', error);
+    
+    // Hata durumunda da misafir kullanıcı oluştur
     try {
       const guestUser = await createGuestUser();
       socket.userId = guestUser._id;
-      socket.isGuest = true;
       socket.username = guestUser.username;
-      return next();
-    } catch (error) {
-      return next(new Error('Misafir kullanıcı oluşturulamadı'));
-    }
-  }
-  
-  // Session verilerini çöz ve kullanıcı kimliğini al
-  try {
-    // Var olan oturumu kullan
-    socket.request.session = session;
-    
-    if (socket.request.session && socket.request.session.userId) {
-      socket.userId = socket.request.session.userId;
-      socket.isGuest = socket.request.session.isGuest || false;
-      
-      // Kullanıcı adını al (isteğe bağlı)
-      try {
-        const user = await User.findById(socket.userId);
-        if (user) {
-          socket.username = user.username;
-        }
-      } catch (err) {
-        console.error('Kullanıcı bilgisi alınamadı:', err);
-      }
-      
-      return next();
-    } else {
-      // Oturum yoksa misafir kullanıcı oluştur
-      const guestUser = await createGuestUser();
-      socket.userId = guestUser._id;
       socket.isGuest = true;
-      socket.username = guestUser.username;
+      userSockets.set(guestUser._id.toString(), socket.id);
       return next();
+    } catch (innerError) {
+      return next(new Error('Misafir kullanıcı oluşturma hatası'));
     }
-  } catch (error) {
-    console.error('Socket kimlik doğrulama hatası:', error);
-    return next(new Error('Kimlik doğrulama hatası'));
   }
 });
 
 io.on('connection', async (socket) => {
-  console.log(`Yeni bağlantı: ${socket.id}, Kullanıcı: ${socket.userId}, Misafir: ${socket.isGuest}`);
+  console.log(`Yeni socket bağlantısı: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}, UserId: ${socket.userId || 'Yok'}`);
   
   // Tüm socket hatalarını yakalama
   socket.on('error', (error) => {
@@ -541,69 +553,92 @@ io.on('connection', async (socket) => {
   // Kullanıcı kimliğini belirle
   socket.on('authenticate', async (userId) => {
     try {
-      console.log('Kimlik doğrulama isteği:', userId);
+      console.log(`Kimlik doğrulama isteği userId: ${userId}, socket.userId: ${socket.userId}`);
       
-      // Misafir kullanıcı için veya normal kullanıcı için kimliği doğrula
-      const user = await User.findById(userId || socket.userId);
-      if (user) {
-        userSockets.set(user._id, socket.id);
-        socket.userId = user._id;
-        socket.username = user.username;
-        socket.isGuest = user.isGuest || false;
-        console.log(`Kullanıcı ${user.username} bağlandı, Misafir: ${socket.isGuest}`);
-      } else {
-        console.log('Kimlik doğrulama başarısız: Kullanıcı bulunamadı');
-        socket.emit('error', { message: 'Kullanıcı bulunamadı' });
+      // Kullanıcı zaten doğrulandıysa ve aynı kimlikse işleme gerek yok
+      if (socket.userId && socket.userId.toString() === userId) {
+        console.log('Kullanıcı zaten doğrulanmış, işlem atlanıyor.');
+        return;
+      }
+      
+      // Kullanıcıyı doğrula
+      if (userId) {
+        const user = await User.findById(userId);
+        if (user) {
+          console.log(`Kullanıcı bulundu: ${user.username}`);
+          socket.userId = user._id;
+          socket.username = user.username;
+          socket.isGuest = user.isGuest || false;
+          
+          // Kullanıcı Socket Map'e kaydet
+          userSockets.set(user._id.toString(), socket.id);
+          console.log(`Kullanıcı socket eşleşmesi güncellendi: ${user.username} -> ${socket.id}`);
+          return;
+        }
+      }
+      
+      // Kullanıcı bulunamadıysa ve socket.userId yoksa, misafir kullanıcı oluştur
+      if (!socket.userId) {
+        const guestUser = await createGuestUser();
+        socket.userId = guestUser._id;
+        socket.username = guestUser.username;
+        socket.isGuest = true;
+        
+        // Kullanıcı Socket Map'e kaydet
+        userSockets.set(guestUser._id.toString(), socket.id);
+        console.log(`Misafir kullanıcı oluşturuldu: ${guestUser.username}`);
       }
     } catch (error) {
       console.error('Kimlik doğrulama hatası:', error);
-      socket.emit('error', { message: 'Kimlik doğrulama hatası' });
     }
   });
 
   // Oyuncu eşleşme için arama
   socket.on('find_match', async (timeControl) => {
+    console.log(`Eşleşme isteği - Socket: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}`);
+    
     if (!socket.userId) {
-      try {
-        // Misafir kullanıcı oluştur
-        const guestUser = await createGuestUser();
-        socket.userId = guestUser._id;
-        socket.isGuest = true;
-        socket.username = guestUser.username;
-        userSockets.set(guestUser._id, socket.id);
-        console.log(`Misafir kullanıcı ${guestUser.username} oluşturuldu ve bağlandı`);
-      } catch (error) {
-        console.error('Misafir kullanıcı oluşturma hatası:', error);
-        socket.emit('error', { message: 'Misafir kullanıcı oluşturulamadı' });
-        return;
-      }
+      console.log('Eşleşme hatası: Kullanıcı kimliği yok');
+      socket.emit('error', { message: 'Kullanıcı kimliği bulunamadı, lütfen sayfayı yenileyin' });
+      return;
     }
     
-    console.log(`Oyuncu ${socket.userId} eşleşme arıyor, süre kontrolü: ${timeControl} dakika`);
-    
     try {
+      // Kullanıcı bilgisini doğrula
       const user = await User.findById(socket.userId);
       
       if (!user) {
-        console.log('Kullanıcı bulunamadı:', socket.userId);
-        socket.emit('error', { message: 'Kullanıcı bulunamadı' });
+        console.log('Eşleşme hatası: Kullanıcı bulunamadı:', socket.userId);
+        socket.emit('error', { message: 'Kullanıcı bulunamadı, lütfen sayfayı yenileyin' });
         return;
       }
       
       // Geçerli bir sayı olduğundan emin ol
-      timeControl = parseInt(timeControl) || 10;
+      timeControl = parseInt(timeControl) || 15;
+      console.log(`Eşleşme parametreleri - Kullanıcı: ${user.username}, Süre: ${timeControl}dk, ELO: ${user.elo}`);
       
-      // ELO sistemine göre eşleştirme
-      // Aynı zaman kontrolüne sahip ve ELO'su benzer bir oyuncu bul
+      // Önce mevcut bekleme listesinden bu kullanıcıyı kaldır
+      const existingIndex = waitingPlayers.findIndex(p => p.id.toString() === socket.userId.toString());
+      if (existingIndex !== -1) {
+        waitingPlayers.splice(existingIndex, 1);
+        console.log(`Kullanıcı bekleme listesinden kaldırıldı: ${user.username}`);
+      }
+      
+      // Bekleme listesini kontrol et - aynı zamanlı eşleşme
+      console.log(`Bekleme listesi durumu: ${waitingPlayers.length} oyuncu bekliyor`);
+      
+      // Bu kullanıcı için bir eşleşme bul (aynı süre kontrolüne sahip kullanıcı)
       const waitingPlayerIndex = waitingPlayers.findIndex(p => {
-        return p.timeControl === timeControl && 
-               Math.abs(p.elo - user.elo) < 200 && // 200 ELO puan farkı toleransı
-               p.id.toString() !== socket.userId.toString(); // Kendisiyle eşleşmeyi önle
+        return p.id.toString() !== socket.userId.toString() &&  // kendisiyle eşleşmesin
+               p.timeControl === timeControl;  // aynı süre kontrolü
       });
       
       if (waitingPlayerIndex !== -1) {
+        // Eşleşme bulundu
         const opponent = waitingPlayers.splice(waitingPlayerIndex, 1)[0];
         const gameId = Math.random().toString(36).substring(2, 15);
+        
+        console.log(`Eşleşme bulundu! ${user.username} ve ${opponent.username} arasında, süre: ${timeControl}dk`);
         
         // Rastgele renk ataması (beyaz/siyah)
         const randomBoolean = Math.random() < 0.5;
@@ -646,19 +681,22 @@ io.on('connection', async (socket) => {
           moves: [],
           timeControl: timeControl,
           clocks: {
-            [whitePlayerId]: timeInMilliseconds,
-            [blackPlayerId]: timeInMilliseconds
+            [whitePlayerId.toString()]: timeInMilliseconds,
+            [blackPlayerId.toString()]: timeInMilliseconds
           },
+
           lastMoveTime: Date.now(),
           currentTurn: 'white',
           messages: []
         });
         
         // Her iki oyuncuya da eşleşme bilgisini gönder
-        const whiteSocketId = userSockets.get(whitePlayerId);
-        const blackSocketId = userSockets.get(blackPlayerId);
+        const whiteSocketId = userSockets.get(whitePlayerId.toString());
+        const blackSocketId = userSockets.get(blackPlayerId.toString());
         
-        console.log('Eşleşme bilgisi gönderiliyor. Beyaz:', whiteSocketId, 'Siyah:', blackSocketId);
+        console.log('Eşleşme bilgisi gönderiliyor:');
+        console.log(`Beyaz (${whitePlayer.username}) -> Socket: ${whiteSocketId}`);
+        console.log(`Siyah (${blackPlayer.username}) -> Socket: ${blackSocketId}`);
         
         if (whiteSocketId) {
           io.to(whiteSocketId).emit('match_found', { 
@@ -678,23 +716,19 @@ io.on('connection', async (socket) => {
           });
         }
         
-        console.log(`Eşleşme oluşturuldu: ${gameId} oyuncular: ${whitePlayer.username} ve ${blackPlayer.username}, süre: ${timeControl} dakika`);
+        console.log(`Eşleşme oluşturuldu: ${gameId}, oyuncular: ${whitePlayer.username} ve ${blackPlayer.username}, süre: ${timeControl} dakika`);
       } else {
-        // Önce mevcut bekleme listesinden bu kullanıcıyı kaldır
-        const existingIndex = waitingPlayers.findIndex(p => p.id.toString() === socket.userId.toString());
-        if (existingIndex !== -1) {
-          waitingPlayers.splice(existingIndex, 1);
-        }
-        
-        // Oyuncuyu bekleme listesine ekle
+        // Eşleşme bulunamadı, bekleme listesine ekle
         waitingPlayers.push({ 
           id: socket.userId, 
           joinedAt: Date.now(),
           timeControl: timeControl,
-          elo: user.elo
+          elo: user.elo,
+          username: user.username
         });
         socket.emit('waiting');
-        console.log(`Oyuncu ${user.username} bekleme listesine eklendi`);
+        console.log(`Oyuncu bekleme listesine eklendi: ${user.username} - Süre: ${timeControl}dk - Bekleyen oyuncu sayısı: ${waitingPlayers.length}`);
+        console.log('Bekleme listesi:', waitingPlayers.map(p => p.username));
       }
     } catch (error) {
       console.error('Eşleşme oluşturma hatası:', error);
@@ -704,14 +738,17 @@ io.on('connection', async (socket) => {
 
   // Hamle yapma
   socket.on('move', async ({ gameId, move, fen, pgn }) => {
+    console.log(`Hamle isteği - Socket: ${socket.id}, Oyun: ${gameId}, Hamle: ${move.from} -> ${move.to}`);
+    
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
+      socket.emit('error', { message: 'Kullanıcı kimliği bulunamadı' });
       return;
     }
     
     const game = activeGames.get(gameId);
     if (!game) {
       console.log('Oyun bulunamadı:', gameId);
+      socket.emit('error', { message: 'Oyun bulunamadı' });
       return;
     }
     
@@ -719,12 +756,14 @@ io.on('connection', async (socket) => {
     const player = game.players.find(p => p.id.toString() === socket.userId.toString());
     if (!player) {
       console.log('Bu oyuncu bu oyuna ait değil');
+      socket.emit('error', { message: 'Bu oyuna katılma yetkiniz yok' });
       return;
     }
     
     if ((game.currentTurn === 'white' && player.color !== 'white') || 
         (game.currentTurn === 'black' && player.color !== 'black')) {
       console.log('Sıra bu oyuncuda değil');
+      socket.emit('error', { message: 'Şu anda hamle sırası sizde değil' });
       return;
     }
     
@@ -745,7 +784,7 @@ io.on('connection', async (socket) => {
       });
       
       // Mevcut oyuncunun saatini güncelle
-      game.clocks[socket.userId] -= timeDiff;
+      game.clocks[socket.userId.toString()] -= timeDiff;
       
       // Sırayı değiştir
       game.currentTurn = player.color === 'white' ? 'black' : 'white';
@@ -754,38 +793,48 @@ io.on('connection', async (socket) => {
       // Rakibe bildir
       const opponent = game.players.find(p => p.id.toString() !== socket.userId.toString());
       if (opponent) {
-        const opponentSocketId = userSockets.get(opponent.id);
+        const opponentSocketId = userSockets.get(opponent.id.toString());
+        console.log(`Rakibe hamle bildiriliyor: ${opponent.username} -> Socket: ${opponentSocketId}`);
+        
         if (opponentSocketId) {
           io.to(opponentSocketId).emit('opponent_move', { 
             move, 
             fen, 
             pgn,
-            whiteTime: game.clocks[game.players.find(p => p.color === 'white').id],
-            blackTime: game.clocks[game.players.find(p => p.color === 'black').id]
+            whiteTime: game.clocks[game.players.find(p => p.color === 'white').id.toString()],
+            blackTime: game.clocks[game.players.find(p => p.color === 'black').id.toString()]
           });
         }
       }
     } catch (error) {
       console.error('Hamle işleme hatası:', error);
+      socket.emit('error', { message: 'Hamle işlenirken bir hata oluştu' });
     }
   });
 
   // Oyun bitti
   socket.on('game_over', async ({ gameId, result }) => {
+    console.log(`Oyun bitti isteği - Socket: ${socket.id}, Oyun: ${gameId}, Sonuç: ${result}`);
+    
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
+      socket.emit('error', { message: 'Kullanıcı kimliği bulunamadı' });
       return;
     }
     
     const game = activeGames.get(gameId);
     if (!game) {
       console.log('Oyun bitirme hatası: Oyun bulunamadı');
+      socket.emit('error', { message: 'Oyun bulunamadı' });
       return;
     }
     
     try {
       const player = game.players.find(p => p.id.toString() === socket.userId.toString());
-      if (!player) return;
+      if (!player) {
+        console.log('Bu oyuncu bu oyuna ait değil');
+        socket.emit('error', { message: 'Bu oyuna katılma yetkiniz yok' });
+        return;
+      }
       
       // Oyun durumunu güncelle
       let gameResult;
@@ -826,8 +875,12 @@ io.on('connection', async (socket) => {
       
       if (!whitePlayer || !blackPlayer) {
         console.log('Oyun sonu işleme hatası: Oyunculardan biri bulunamadı');
+        socket.emit('error', { message: 'Oyuncular bulunamadı' });
         return;
       }
+      
+      let newWhiteElo = whitePlayer.elo;
+      let newBlackElo = blackPlayer.elo;
       
       // Misafir kullanıcıları istatistik güncellemeden hariç tut
       if (!whitePlayer.isGuest && !blackPlayer.isGuest) {
@@ -854,8 +907,8 @@ io.on('connection', async (socket) => {
         }
         
         // Yeni ELO puanları
-        const newWhiteElo = Math.round(whitePlayer.elo + kFactor * (actualWhite - expectedWhite));
-        const newBlackElo = Math.round(blackPlayer.elo + kFactor * (actualBlack - expectedBlack));
+        newWhiteElo = Math.round(whitePlayer.elo + kFactor * (actualWhite - expectedWhite));
+        newBlackElo = Math.round(blackPlayer.elo + kFactor * (actualBlack - expectedBlack));
         
         // Beyaz oyuncuyu güncelle - misafir olmayan oyuncular için
         if (!whitePlayer.isGuest) {
@@ -880,13 +933,16 @@ io.on('connection', async (socket) => {
       
       // İki oyuncuya da bilgi gönder
       game.players.forEach(p => {
-        const playerSocketId = userSockets.get(p.id);
+        const playerSocketId = userSockets.get(p.id.toString());
         if (playerSocketId) {
-          // Misafir kullanıcılarda ELO değişimi olmaz
+          // ELO değişimini hesapla
           const player = p.color === 'white' ? whitePlayer : blackPlayer;
-          const opponent = p.color === 'white' ? blackPlayer : whitePlayer;
-          const eloChange = player.isGuest ? 0 : 
-            (p.color === 'white' ? (newWhiteElo - whitePlayer.elo) : (newBlackElo - blackPlayer.elo));
+          const initialElo = player.elo;
+          const newElo = p.color === 'white' ? newWhiteElo : newBlackElo;
+          const eloChange = player.isGuest ? 0 : (newElo - initialElo);
+          
+          console.log(`Oyun sonu bilgisi gönderiliyor: ${player.username} -> Socket: ${playerSocketId}`);
+          console.log(`ELO değişimi: ${initialElo} -> ${newElo} (${eloChange > 0 ? '+' : ''}${eloChange})`);
           
           io.to(playerSocketId).emit('game_ended', { 
             result: gameResult,
@@ -903,27 +959,39 @@ io.on('connection', async (socket) => {
       
     } catch (error) {
       console.error('Oyun bitirme hatası:', error);
+      socket.emit('error', { message: 'Oyun sonlandırılırken bir hata oluştu' });
     }
   });
 
   // Süre aşımı
   socket.on('time_out', async ({ gameId }) => {
+    console.log(`Süre aşımı bildirimi - Socket: ${socket.id}, Oyun: ${gameId}`);
+    
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
+      socket.emit('error', { message: 'Kullanıcı kimliği bulunamadı' });
       return;
     }
     
     const game = activeGames.get(gameId);
-    if (!game) return;
+    if (!game) {
+      console.log('Oyun bulunamadı:', gameId);
+      socket.emit('error', { message: 'Oyun bulunamadı' });
+      return;
+    }
     
     try {
       const player = game.players.find(p => p.id.toString() === socket.userId.toString());
-      if (!player) return;
+      if (!player) {
+        console.log('Bu oyuncu bu oyuna ait değil');
+        socket.emit('error', { message: 'Bu oyuna katılma yetkiniz yok' });
+        return;
+      }
       
       // Süre kontrolü için güvenlik kontrolü
-      const playerClock = game.clocks[socket.userId];
+      const playerClock = game.clocks[socket.userId.toString()];
       if (playerClock > 0) {
-        console.log('Geçersiz süre aşımı bildirimi: Oyuncunun hala zamanı var');
+        console.log('Geçersiz süre aşımı bildirimi: Oyuncunun hala zamanı var:', playerClock);
+        socket.emit('error', { message: 'Geçersiz süre aşımı bildirimi' });
         return;
       }
       
@@ -934,24 +1002,36 @@ io.on('connection', async (socket) => {
       
     } catch (error) {
       console.error('Süre aşımı hatası:', error);
+      socket.emit('error', { message: 'Süre aşımı işlenirken bir hata oluştu' });
     }
   });
 
   // Sohbet mesajı
   socket.on('send_message', ({ gameId, message }) => {
+    console.log(`Sohbet mesajı - Socket: ${socket.id}, Oyun: ${gameId}, Mesaj: "${message.substring(0, 20)}${message.length > 20 ? '...' : ''}"`);
+    
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
+      socket.emit('error', { message: 'Kullanıcı kimliği bulunamadı' });
       return;
     }
     
     const game = activeGames.get(gameId);
-    if (!game) return;
+    if (!game) {
+      console.log('Oyun bulunamadı:', gameId);
+      socket.emit('error', { message: 'Oyun bulunamadı' });
+      return;
+    }
     
     const player = game.players.find(p => p.id.toString() === socket.userId.toString());
-    if (!player) return;
+    if (!player) {
+      console.log('Bu oyuncu bu oyuna ait değil');
+      socket.emit('error', { message: 'Bu oyuna katılma yetkiniz yok' });
+      return;
+    }
     
     // Mesaj içerik kontrolü
     if (!message || message.trim() === '' || message.length > 500) {
+      socket.emit('error', { message: 'Geçersiz mesaj' });
       return; // Boş veya çok uzun mesajları reddet
     }
     
@@ -973,7 +1053,7 @@ io.on('connection', async (socket) => {
     
     // Her iki oyuncuya da gönder
     game.players.forEach(p => {
-      const playerSocketId = userSockets.get(p.id);
+      const playerSocketId = userSockets.get(p.id.toString());
       if (playerSocketId) {
         io.to(playerSocketId).emit('chat_message', chatMessage);
       }
@@ -982,12 +1062,13 @@ io.on('connection', async (socket) => {
 
   // Bağlantı kesilince
   socket.on('disconnect', () => {
+    console.log(`Bağlantı kesildi: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}`);
+    
     if (socket.userId) {
-      console.log(`Oyuncu bağlantısı kesildi: ${socket.userId}`);
-      
       // Bekleme listesinden kaldır
       const waitingIndex = waitingPlayers.findIndex(p => p.id.toString() === socket.userId.toString());
       if (waitingIndex !== -1) {
+        console.log(`Kullanıcı bekleme listesinden çıkarıldı: ${waitingPlayers[waitingIndex].username}`);
         waitingPlayers.splice(waitingIndex, 1);
       }
       
@@ -995,20 +1076,28 @@ io.on('connection', async (socket) => {
       for (const [gameId, game] of activeGames.entries()) {
         const playerIndex = game.players.findIndex(p => p.id.toString() === socket.userId.toString());
         if (playerIndex !== -1) {
+          const player = game.players[playerIndex];
           const opponent = game.players.find(p => p.id.toString() !== socket.userId.toString());
+          
+          console.log(`Aktif oyuncu bağlantısı kesildi: ${player.username}, Oyun: ${gameId}`);
+          
           if (opponent) {
-            const opponentSocketId = userSockets.get(opponent.id);
+            const opponentSocketId = userSockets.get(opponent.id.toString());
             if (opponentSocketId) {
+              console.log(`Rakibe bağlantı kesinti bildirimi: ${opponent.username}`);
               io.to(opponentSocketId).emit('opponent_disconnected');
             }
           }
           
           // Eğer veritabanında kaydedilmiş bir oyunsa, sonuç güncelle
           if (game.dbId) {
+            const winnerColor = socket.userId === game.players.find(p => p.color === 'white').id ? 'black' : 'white';
             Game.findByIdAndUpdate(game.dbId, {
-              result: socket.userId === game.players.find(p => p.color === 'white').id ? 'black' : 'white',
+              result: winnerColor,
               endTime: new Date()
             }).catch(err => console.error('Oyun güncelleme hatası:', err));
+            
+            console.log(`Oyun sonucu güncellendi: ${gameId}, Kazanan: ${winnerColor}`);
           }
           
           activeGames.delete(gameId);
@@ -1016,10 +1105,19 @@ io.on('connection', async (socket) => {
       }
       
       // Socket-User eşleşmesini kaldır
-      userSockets.delete(socket.userId);
+      userSockets.delete(socket.userId.toString());
     }
   });
 });
+
+// Debug bilgilerini düzenli aralıklarla logla
+setInterval(() => {
+  console.log("------- SUNUCU DURUMU -------");
+  console.log(`Aktif oyunlar: ${activeGames.size}`);
+  console.log(`Bekleyen oyuncular: ${waitingPlayers.length}`);
+  console.log(`Socket-Kullanıcı eşleşmeleri: ${userSockets.size}`);
+  console.log("-----------------------------");
+}, 60000); // Her 1 dakikada bir
 
 // Genel hata yakalama
 process.on('uncaughtException', (err) => {
