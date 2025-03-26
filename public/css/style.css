@@ -1,329 +1,3 @@
-# style.css
-cat <<'EOF' > /var/www/turksatranc/public/css/style.css
-/* TürkSatranç - Ana Stil Dosyası */
-
-/* Resetleme ve Temel Stiller */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Roboto', sans-serif;
-    line-height: 1.6;
-    color: #333;
-    background-color: #f5f5f5;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-.site-wrapper {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
-
-main {
-    flex: 1;
-    padding: 30px 0;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-}
-
-a {
-    color: #c81912;
-    text-decoration: none;
-    transition: color 0.3s ease;
-}
-
-a:hover {
-    color: #e63028;
-}
-
-ul {
-    list-style: none;
-}
-
-img {
-    max-width: 100%;
-    height: auto;
-}
-
-/* Türk Desenli Arka Planlar */
-.turkish-pattern {
-    background-color: #fff;
-    background-image: url('../img/turkish-pattern.png');
-    background-repeat: repeat;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    position: relative;
-    overflow: hidden;
-}
-
-.turkish-pattern::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(255, 255, 255, 0.85);
-    z-index: 0;
-}
-
-.turkish-pattern > * {
-    position: relative;
-    z-index: 1;
-}
-
-.turkish-pattern-light {
-    background-color: #fff;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    position: relative;
-    overflow: hidden;
-}
-
-.turkish-pattern-light::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-image: url('../img/turkish-pattern-light.png');
-    background-repeat: repeat;
-    opacity: 0.1;
-    z-index: 0;
-}
-
-.turkish-pattern-light > * {
-    position: relative;
-    z-index: 1;
-}
-
-/* Header ve Navigasyon */
-.main-header {
-    background-color: #fff;
-    border-bottom: 1px solid #e0e0e0;
-    padding: 15px 0;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.main-header .container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.logo a {
-    display: flex;
-    align-items: center;
-    color: #c81912;
-    font-weight: bold;
-    font-size: 1.5rem;
-}
-
-.logo img {
-    height: 40px;
-    margin-right: 10px;
-}
-
-.logo span {
-    font-family: 'Kaushan Script', cursive;
-    font-size: 1.8rem;
-}
-
-.main-nav ul {
-    display: flex;
-    gap: 20px;
-}
-
-.main-nav a {
-    display: flex;
-    align-items: center;
-    color: #444;
-    font-weight: 500;
-    padding: 8px 12px;
-    border-radius: 5px;
-    transition: all 0.3s ease;
-}
-
-.main-nav a i {
-    margin-right: 8px;
-}
-
-.main-nav a:hover, .main-nav a.active {
-    color: #c81912;
-    background-color: rgba(200, 25, 18, 0.1);
-}
-
-.user-controls {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-#username-display {
-    font-weight: 500;
-}
-
-#elo-display {
-    background-color: #c81912;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
-
-/* Butonlar */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-family: 'Roboto', sans-serif;
-}
-
-.btn i {
-    margin-right: 8px;
-}
-
-.primary-btn {
-    background-color: #c81912;
-    color: white;
-}
-
-.primary-btn:hover {
-    background-color: #e63028;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(200, 25, 18, 0.3);
-}
-
-.secondary-btn {
-    background-color: #444;
-    color: white;
-}
-
-.secondary-btn:hover {
-    background-color: #333;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-}
-
-.small-btn {
-    padding: 5px 10px;
-    font-size: 0.9rem;
-}
-
-/* Sayfa Başlığı */
-.page-title {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.page-title h1 {
-    font-size: 2.2rem;
-    color: #333;
-    margin-bottom: 5px;
-}
-
-.page-title h1 i {
-    color: #c81912;
-    margin-right: 10px;
-}
-
-.status-message {
-    display: inline-block;
-    background-color: #fff;
-    padding: 10px 20px;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    font-weight: 500;
-}
-
-/* Ana Sayfa - Oyun Kurulumu */
-.setup-container {
-    display: flex;
-    justify-content: center;
-    margin: 20px 0 40px;
-}
-
-.panel {
-    width: 100%;
-    max-width: 500px;
-    padding: 30px;
-}
-
-.panel h2 {
-    text-align: center;
-    margin-bottom: 25px;
-    color: #333;
-    font-size: 1.8rem;
-}
-
-.time-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 15px;
-    margin-bottom: 30px;
-}
-
-.time-option {
-    padding: 15px 10px;
-    background-color: #f8f8f8;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.time-option:hover {
-    background-color: #f0f0f0;
-    border-color: #ccc;
-    transform: translateY(-2px);
-}
-
-.time-option.selected {
-    background-color: #c81912;
-    color: white;
-    border-color: #c81912;
-}
-
-#start-btn {
-    width: 100%;
-    padding: 15px;
-    font-size: 1.2rem;
-}
-
-/* Oyun Konteyneri */
-.game-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background-color: #fff;
-    border-radius: 10px;
-# style.css
-cat <<'EOF' > /var/www/turksatranc/public/css/style.css
 /* TürkSatranç - Ana Stil Dosyası */
 
 /* Resetleme ve Temel Stiller */
@@ -1777,8 +1451,23 @@ img {
     font-weight: 500;
 }
 
-/* Responsive Design */
+/* Responsive Design - Gelişmiş Mobil Desteği */
+@media (max-width: 1200px) {
+    .container {
+        max-width: 960px;
+    }
+    
+    .profile-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+}
+
 @media (max-width: 1000px) {
+    .container {
+        max-width: 720px;
+    }
+    
     .main-content, .profile-container, .games-history-container {
         flex-direction: column;
         grid-template-columns: 1fr;
@@ -1787,6 +1476,12 @@ img {
     .board-section, .side-panel {
         padding-right: 0;
         margin-bottom: 20px;
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .side-panel {
+        min-height: 300px;
     }
     
     .game-view {
@@ -1795,14 +1490,28 @@ img {
     
     .auth-container {
         flex-direction: column;
+        min-height: auto;
     }
     
     .auth-left {
         display: none;
     }
+    
+    .auth-right {
+        padding: 30px 20px;
+    }
+    
+    .game-meta {
+        flex-direction: column;
+        gap: 10px;
+    }
 }
 
 @media (max-width: 768px) {
+    .container {
+        max-width: 540px;
+    }
+    
     .main-header .container {
         flex-direction: column;
         gap: 15px;
@@ -1810,14 +1519,27 @@ img {
     
     .main-nav ul {
         justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .main-nav a {
+        font-size: 0.9rem;
+        padding: 6px 10px;
     }
     
     .user-controls {
         justify-content: center;
+        flex-wrap: wrap;
     }
     
-    .profile-stats {
-        grid-template-columns: repeat(2, 1fr);
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .profile-avatar {
+        margin-right: 0;
+        margin-bottom: 15px;
     }
     
     .profile-actions {
@@ -1834,33 +1556,174 @@ img {
         grid-template-columns: repeat(2, 1fr);
     }
     
-    .auth-right {
-        padding: 30px 20px;
-    }
-}
-
-@media (max-width: 480px) {
-    .main-nav ul {
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    
-    .profile-header {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .profile-avatar {
-        margin-right: 0;
-        margin-bottom: 15px;
-    }
-    
-    .game-meta {
+    .game-players {
         flex-direction: column;
         gap: 10px;
     }
     
+    .game-result-indicator {
+        margin: 10px 0;
+    }
+    
     .game-controls {
         flex-wrap: wrap;
+    }
+    
+    .social-share {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        width: 100%;
+        padding: 0 15px;
+    }
+    
+    .panel {
+        padding: 20px;
+    }
+    
+    .main-nav ul {
+        gap: 5px;
+    }
+    
+    .main-nav a {
+        font-size: 0.8rem;
+        padding: 5px 8px;
+    }
+    
+    .main-nav a i {
+        margin-right: 5px;
+    }
+    
+    .game-container {
+        border-radius: 0;
+    }
+    
+    .player-info {
+        padding: 10px;
+    }
+    
+    .profile-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .win-rate-stats {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .ranking-table th, .ranking-table td {
+        padding: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .game-actions {
+        flex-direction: column;
+    }
+    
+    .auth-form-container h2 {
+        font-size: 1.8rem;
+    }
+    
+    .game-time-control {
+        display: none;
+    }
+}
+
+/* Dokunmatik Cihazlar için İyileştirmeler */
+@media (hover: none) {
+    .btn:hover, .time-option:hover, .tab-btn:hover, .game-history-item:hover, .game-item:hover {
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .btn:active, .time-option:active, .tab-btn:active, .game-history-item:active, .game-item:active {
+        transform: scale(0.98);
+    }
+    
+    .control-btn {
+        padding: 10px 15px; /* Dokunmatik için daha büyük butonlar */
+    }
+}
+
+/* Yüksek Çözünürlüklü Telefon Ekranları için İyileştirmeler */
+@media (max-width: 428px) {
+    .page-title h1 {
+        font-size: 1.8rem;
+    }
+    
+    .board-section {
+        padding: 10px;
+    }
+    
+    .tab-btn {
+        padding: 10px;
+        font-size: 0.9rem;
+    }
+    
+    .tab-btn i {
+        margin-right: 5px;
+    }
+    
+    .auth-form-container h2 {
+        font-size: 1.6rem;
+    }
+    
+    .auth-subtitle {
+        font-size: 0.9rem;
+    }
+    
+    .input-with-icon input {
+        padding: 10px 10px 10px 40px;
+    }
+    
+    .auth-btn {
+        padding: 12px;
+    }
+    
+    .game-meta .meta-item {
+        font-size: 0.9rem;
+    }
+}
+
+/* Çok Küçük Ekranlar için İyileştirmeler */
+@media (max-width: 320px) {
+    .main-nav a {
+        padding: 4px 6px;
+        font-size: 0.75rem;
+    }
+    
+    .time-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .page-title h1 {
+        font-size: 1.5rem;
+    }
+    
+    .status-message {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+    
+    .game-controls {
+        gap: 5px;
+    }
+    
+    .control-btn {
+        padding: 8px;
+    }
+}
+
+/* Safari için Özel Düzeltmeler */
+@supports (-webkit-touch-callout: none) {
+    .auth-container {
+        min-height: -webkit-fill-available;
+    }
+    
+    .site-wrapper {
+        min-height: -webkit-fill-available;
     }
 }
