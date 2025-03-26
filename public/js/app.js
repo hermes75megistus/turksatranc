@@ -419,23 +419,28 @@ document.addEventListener('DOMContentLoaded', () => {
         board.position(game.fen());
     }
     
-    // Eşleşme bul
-    function findMatch() {
-        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
-        setupContainer.style.display = 'none';
-        
-        // Socket bağlantı kontrolü
-        if (!socket.connected) {
-            console.error('Sunucuya bağlanılamadı!');
-            statusDiv.innerHTML = 'Sunucuya bağlanılamadı. Sayfayı yenileyin veya daha sonra tekrar deneyin.';
-            setupContainer.style.display = 'flex';
-            return;
-        }
-        
-        // Eşleşme ara
-        socket.emit('find_match', timeControl);
-        currentGameState = 'waiting';
+// Eşleşme bul
+function findMatch() {
+    console.log("Eşleşme aranıyor...");
+    statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
+    setupContainer.style.display = 'none';
+    
+    // Socket bağlantı kontrolü
+    if (!socket.connected) {
+        console.error('Sunucuya bağlanılamadı!');
+        statusDiv.innerHTML = 'Sunucuya bağlanılamadı. Sayfayı yenileyin veya daha sonra tekrar deneyin.';
+        setupContainer.style.display = 'flex';
+        return;
     }
+    
+    console.log("Socket bağlantı durumu:", socket.connected);
+    console.log("Süre kontrolü:", timeControl);
+    
+    // Eşleşme ara
+    socket.emit('find_match', timeControl);
+    console.log("find_match olayı gönderildi");
+    currentGameState = 'waiting';
+}
     
     // Eşleşme bulunduğunda
     function matchFound(data) {
