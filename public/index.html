@@ -31,10 +31,14 @@
                 </nav>
                 <div class="user-controls">
                     <div class="user-info">
-                        <span id="username-display">Kullanıcı</span>
+                        <span id="username-display">Misafir</span>
                         <span id="elo-display">1200</span>
                     </div>
-                    <button id="logout-btn" class="btn secondary-btn small-btn"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
+                    <div id="auth-buttons">
+                        <a href="/giris" class="btn primary-btn small-btn"><i class="fas fa-sign-in-alt"></i> Giriş</a>
+                        <a href="/kayit" class="btn secondary-btn small-btn"><i class="fas fa-user-plus"></i> Kayıt</a>
+                    </div>
+                    <button id="logout-btn" class="btn secondary-btn small-btn" style="display: none;"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
                 </div>
             </div>
         </header>
@@ -57,6 +61,9 @@
                         <button class="time-option" data-time="30">30 dk</button>
                     </div>
                     <button id="start-btn" class="btn primary-btn"><i class="fas fa-play"></i> Hızlı Eşleşme</button>
+                    <p class="guest-login-info" style="margin-top: 15px; font-size: 0.9rem; text-align: center;">
+                        <i class="fas fa-info-circle"></i> Hesabınız yoksa misafir olarak oynayabilirsiniz.
+                    </p>
                 </div>
             </div>
             
