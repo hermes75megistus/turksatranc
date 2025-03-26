@@ -668,22 +668,26 @@ io.on('connection', async (socket) => {
         await newGame.save();
         console.log('Yeni oyun veritabanına kaydedildi:', newGame._id);
         
-        // Aktif oyun bilgisiplayers: [
-            { id: whitePlayerId, color: 'white', username: whitePlayer.username },
-            { id: blackPlayerId, color: 'black', username: blackPlayer.username }
-          ],
-          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-          pgn: '',
-          moves: [],
-          timeControl: timeControl,
-          clocks: {
-            [whitePlayerId.toString()]: timeInMilliseconds,
-            [blackPlayerId.toString()]: timeInMilliseconds
-          },
-          lastMoveTime: Date.now(),
-          currentTurn: 'white',
-          messages: []
-        });
+// Aktif oyun bilgisi
+activeGames.set(gameId, {
+  id: gameId,
+  dbId: newGame._id,
+  players: [
+    { id: whitePlayerId, color: 'white', username: whitePlayer.username },
+    { id: blackPlayerId, color: 'black', username: blackPlayer.username }
+  ],
+  fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  pgn: '',
+  moves: [],
+  timeControl: timeControl,
+  clocks: {
+    [whitePlayerId.toString()]: timeInMilliseconds,
+    [blackPlayerId.toString()]: timeInMilliseconds
+  },
+  lastMoveTime: Date.now(),
+  currentTurn: 'white',
+  messages: []
+});
         
         // Her iki oyuncuya da eşleşme bilgisini gönder
         const whiteSocketId = userSockets.get(whitePlayerId.toString());
