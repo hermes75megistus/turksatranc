@@ -1133,7 +1133,4 @@ process.on('unhandledRejection', (reason, promise) => {
 server.listen(PORT, () => {
   console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
 });
-        activeGames.set(gameId, {
-          id: gameId,
-          dbId: newGame._id,
-         
+    
