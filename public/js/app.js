@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let clockInterval = null;
     let opponentName = '';
+    let isGuest = false;
     
     // DOM elemanları
     const statusDiv = document.getElementById('status');
@@ -60,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const usernameDisplay = document.getElementById('username-display');
     const eloDisplay = document.getElementById('elo-display');
     const logoutBtn = document.getElementById('logout-btn');
+    const authButtons = document.getElementById('auth-buttons');
     
     // Kullanıcı bilgilerini yükle
     loadUserInfo();
@@ -126,22 +128,165 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadUserInfo() {
         try {
             const response = await fetch('/api/kullanici', {
-                credentials: 'include', // Çerezleri gönderir
-                headers: {
-                    'Accept': 'application/json'
-                }
+                credentials: 'include' // Çerezleri gönderir
             });
             
+            const userData = await response.json();
+            
+            // Kullanıcı bilgilerini göster
+            usernameDisplay.textContent = userData.username || 'Misafir';
+            eloDisplay.textContent = userData.elo || '1200';
+            playerName.textContent = userData.username || 'Siz';
+
+            
+document.addEventListener('DOMContentLoaded', () => {
+    // Socket.io bağlantısı - sessionId ile kimlik doğrulama
+    const socket = io({
+        auth: {
+            sessionId: getSessionIdFromCookie()
+        }
+    });
+    
+    // Çerezden sessionId alma fonksiyonu
+    function getSessionIdFromCookie() {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.startsWith('connect.sid=')) {
+                return cookie.substring('connect.sid='.length);
+            }
+        }
+        return '';
+    }
+    
+    // Oyun durumu değişkenleri
+    let board = null;
+    let game = new Chess();
+    let gameId = null;
+    let playerColor = 'white';
+    let currentGameState = 'idle'; // idle, waiting, playing, over
+    let timeControl = 15; // Varsayılan süre kontrolü (dakika)
+    let clocks = {
+        white: 15 * 60 * 1000, // milisaniye cinsinden
+        black: 15 * 60 * 1000
+    };
+    let clockInterval = null;
+    let opponentName = '';
+    let isGuest = false;
+    
+    // DOM elemanları
+    const statusDiv = document.getElementById('status');
+    const setupContainer = document.getElementById('setup-container');
+    const gameContainer = document.getElementById('game-container');
+    const timeOptions = document.querySelectorAll('.time-option');
+    const startBtn = document.getElementById('start-btn');
+    const resignBtn = document.getElementById('resign-btn');
+    const newGameBtn = document.getElementById('new-game-btn');
+    const boardContainer = document.getElementById('board-container');
+    const pgnDisplay = document.getElementById('pgn-display');
+    const whiteTimer = document.querySelector('.white-timer');
+    const blackTimer = document.querySelector('.black-timer');
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const resultModal = document.getElementById('result-modal');
+    const resultTitle = document.getElementById('result-title');
+    const resultMessage = document.getElementById('result-message');
+    const eloChangeValue = document.getElementById('elo-change-value');
+    const resultNewGame = document.getElementById('result-new-game');
+    const closeModal = document.querySelector('.close-modal');
+    const playerName = document.getElementById('player-name');
+    const opponentNameElement = document.getElementById('opponent-name');
+    const usernameDisplay = document.getElementById('username-display');
+    const eloDisplay = document.getElementById('elo-display');
+    const logoutBtn = document.getElementById('logout-btn');
+    const authButtons = document.getElementById('auth-buttons');
+    
+    // Kullanıcı bilgilerini yükle
+    loadUserInfo();
+    
+    // Event listener'ları başlat
+    function initializeEventListeners() {
+        // Süre seçenekleri
+        timeOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                // Tüm seçeneklerden "selected" sınıfını kaldır
+                timeOptions.forEach(opt => opt.classList.remove('selected'));
+                // Tıklanan seçeneğe "selected" sınıfını ekle
+                option.classList.add('selected');
+                // Süre kontrolünü güncelle
+                timeControl = parseInt(option.dataset.time, 10);
+            });
+        });
+        
+        // Sekme butonları
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                // Tüm butonlardan ve içeriklerden "active" sınıfını kaldır
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Tıklanan butona ve ilgili içeriğe "active" sınıfını ekle
+                button.classList.add('active');
+                const tabId = button.dataset.tab;
+                document.getElementById(`${tabId}-container`).classList.add('active');
+            });
+        });
+        
+        // Sohbet işlevselliği
+        sendBtn.addEventListener('click', sendChatMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+        
+        // Oyun butonları
+        startBtn.addEventListener('click', findMatch);
+        resignBtn.addEventListener('click', resignGame);
+        newGameBtn.addEventListener('click', newGame);
+        resultNewGame.addEventListener('click', newGame);
+        
+        // Modal kapat butonu
+        closeModal.addEventListener('click', () => {
+            resultModal.style.display = 'none';
+        });
+        
+        // Modal dışına tıklama
+        window.addEventListener('click', (e) => {
+            if (e.target === resultModal) {
+                resultModal.style.display = 'none';
+            }
+        });
+        
+        // Çıkış butonu
+        logoutBtn.addEventListener('click', logout);
+    }
+    
+    // Kullanıcı bilgilerini yükle
+    async function loadUserInfo() {
+        try {
+            const response = await fetch('/api/kullanici', {
+                credentials: 'include' // Çerezleri gönderir
+            });
+            
+            // Yanıt alınamadıysa (mesela 403/401), misafir kullanıcı olarak devam et
             if (!response.ok) {
-                if (response.status === 401 || response.status === 403) {
-                    console.log('Oturum açılmamış, giriş sayfasına yönlendiriliyor');
-                    // Yetkilendirme hatası, giriş sayfasına yönlendir
-                    window.location.href = '/giris';
-                    return;
-                }
-                throw new Error(`HTTP hata: ${response.status}`);
+                isGuest = true;
+                usernameDisplay.textContent = 'Misafir';
+                eloDisplay.textContent = '1200';
+                playerName.textContent = 'Siz';
+                
+                // Giriş/kayıt butonlarını göster, çıkış butonunu gizle
+                if (authButtons) authButtons.style.display = 'block';
+                if (logoutBtn) logoutBtn.style.display = 'none';
+                
+                return;
             }
             
+            // Yanıt içeriğini kontrol et
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
                 console.error('API JSON döndürmedi:', contentType);
@@ -150,21 +295,47 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const userData = await response.json();
             
-            // Kullanıcı bilgilerini göster
-            usernameDisplay.textContent = userData.username;
-            eloDisplay.textContent = userData.elo;
-            playerName.textContent = userData.username;
+            // Misafir kullanıcı kontrolü
+            isGuest = userData.isGuest || false;
             
-            // Socket'e kullanıcı kimliğini gönder
-            socket.emit('authenticate', userData._id);
+            // Kullanıcı bilgilerini göster
+            usernameDisplay.textContent = userData.username || 'Misafir';
+            eloDisplay.textContent = userData.elo || '1200';
+            playerName.textContent = userData.username || 'Siz';
             
             // Kullanıcı kimliğini data attribute olarak sakla
-            usernameDisplay.setAttribute('data-id', userData._id);
+            if (userData._id) {
+                usernameDisplay.setAttribute('data-id', userData._id);
+            }
+            
+            // Kullanıcı tipine göre butonları göster/gizle
+            if (isGuest) {
+                // Misafir kullanıcı: Giriş/kayıt butonlarını göster, çıkış butonunu gizle
+                if (authButtons) authButtons.style.display = 'block';
+                if (logoutBtn) logoutBtn.style.display = 'none';
+            } else {
+                // Normal kullanıcı: Giriş/kayıt butonlarını gizle, çıkış butonunu göster
+                if (authButtons) authButtons.style.display = 'none';
+                if (logoutBtn) logoutBtn.style.display = 'inline-block';
+            }
+            
+            // Socket'e kullanıcı kimliğini gönder (varsa)
+            if (userData._id) {
+                socket.emit('authenticate', userData._id);
+            }
             
         } catch (error) {
             console.error('Kullanıcı bilgisi yükleme hatası:', error);
-            // Hata durumunda da giriş sayfasına yönlendir
-            window.location.href = '/giris';
+            
+            // Hata durumunda da misafir kullanıcı olarak devam et
+            isGuest = true;
+            usernameDisplay.textContent = 'Misafir';
+            eloDisplay.textContent = '1200';
+            playerName.textContent = 'Siz';
+            
+            // Giriş/kayıt butonlarını göster, çıkış butonunu gizle
+            if (authButtons) authButtons.style.display = 'block';
+            if (logoutBtn) logoutBtn.style.display = 'none';
         }
     }
     
@@ -391,24 +562,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Eşleşme bul
     function findMatch() {
-        // Kullanıcı oturumunu kontrol et
-        fetch('/api/kullanici', { credentials: 'include' })
-            .then(response => {
-                if (!response.ok) {
-                    // Oturum yok, giriş sayfasına yönlendir
-                    window.location.href = '/giris';
-                    return;
-                }
-                // Oturum varsa eşleşme ara
-                socket.emit('find_match', timeControl);
-                currentGameState = 'waiting';
-                statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
-                setupContainer.style.display = 'none';
-            })
-            .catch(err => {
-                console.error('Oturum kontrolü hatası:', err);
-                window.location.href = '/giris';
-            });
+        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
+        setupContainer.style.display = 'none';
+        
+        // Socket bağlantı kontrolü
+        if (!socket.connected) {
+            console.error('Sunucuya bağlanılamadı!');
+            statusDiv.innerHTML = 'Sunucuya bağlanılamadı. Sayfayı yenileyin veya daha sonra tekrar deneyin.';
+            setupContainer.style.display = 'flex';
+            return;
+        }
+        
+        // Eşleşme ara
+        socket.emit('find_match', timeControl);
+        currentGameState = 'waiting';
     }
     
     // Eşleşme bulunduğunda
@@ -556,9 +723,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Socket bağlantı hatası
     socket.on('connect_error', (error) => {
         console.error('Bağlantı hatası:', error);
-        // Oturum sorunu varsa giriş sayfasına yönlendir
+        
+        // Bağlantı hatası sayfayı etkilemesin - kullanıcı hala misafir olarak oynayabilir
         if (error.message === 'authentication_error') {
-            window.location.href = '/giris';
+            console.log('Kimlik doğrulama hatası, misafir olarak devam ediliyor...');
+            // Misafir kullanıcı olarak giriş yapma özelliği sunucu tarafında sağlanacak
         }
     });
     
@@ -585,6 +754,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (eloChange !== undefined) {
             eloChangeValue.textContent = eloChange > 0 ? `+${eloChange}` : eloChange;
             eloChangeValue.style.color = eloChange > 0 ? '#27ae60' : '#e74c3c';
+            
+            // Misafir kullanıcı ise veya ELO değişimi 0 ise ELO değişimi alanını gizle
+            const eloChangeContainer = document.getElementById('elo-change');
+            if (isGuest || eloChange === 0) {
+                eloChangeContainer.style.display = 'none';
+            } else {
+                eloChangeContainer.style.display = 'block';
+            }
         }
         
         gameOver(resultMessage, data.result);
@@ -597,8 +774,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => {
         console.error(`Sunucu hatası: ${data.message}`);
+        
         if (data.redirect === '/giris') {
-            window.location.href = '/giris';
+            // Özel bir işlem yapmayalım, misafir olarak oynamaya devam edebilir
+            console.log('Oturum hatası, misafir olarak devam ediliyor...');
         } else {
             alert(`Hata: ${data.message}`);
         }
@@ -607,3 +786,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Uygulamayı başlat
     initializeEventListeners();
 });
+    
