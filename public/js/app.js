@@ -437,7 +437,10 @@ function findMatch() {
     console.log("Süre kontrolü:", timeControl);
     
     // Eşleşme ara
+   // Debug bilgilerini ekleyelim
+    console.log("Socket kimliği:", socket.id);
     socket.emit('find_match', timeControl);
+    console.log("Eşleşme isteği gönderildi, süre:", timeControl);
     console.log("find_match olayı gönderildi");
     currentGameState = 'waiting';
 }
