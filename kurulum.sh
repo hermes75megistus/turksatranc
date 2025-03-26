@@ -25,7 +25,8 @@ INSTALL_DIR="/var/www/turksatranc"
 # Ana dizin oluştur (eğer yoksa)
 if [ ! -d "$INSTALL_DIR" ]; then
   echo -e "${YELLOW}Ana dizin oluşturuluyor: $INSTALL_DIR${NC}"
-  mkdir -p $INSTALL_DIR/{public,server,config/systemd,config/nginx,config/scripts}
+  mkdir -p $INSTALL_DIR/{public,server,config/{nginx,scripts,pm2},logs}
+  mkdir -p $INSTALL_DIR/public/img/chesspieces/wikipedia
 fi
 
 cd $INSTALL_DIR
@@ -59,6 +60,24 @@ else
   systemctl status mongod --no-pager
 fi
 
+# MongoDB çalışıyor mu kontrol et
+if systemctl is-active --quiet mongod; then
+  echo -e "${GREEN}MongoDB servisi aktif.${NC}"
+else
+  echo -e "${YELLOW}MongoDB servisi başlatılıyor...${NC}"
+  systemctl start mongod
+  systemctl enable mongod
+fi
+
+# Nginx kurulu mu kontrol et ve kur
+if ! [ -x "$(command -v nginx)" ]; then
+  echo -e "${YELLOW}Nginx kuruluyor...${NC}"
+  apt update
+  apt install -y nginx
+else
+  echo -e "${GREEN}Nginx kurulu.${NC}"
+fi
+
 # .env dosyası oluştur
 echo -e "${YELLOW}.env dosyası oluşturuluyor...${NC}"
 cat > $INSTALL_DIR/.env << 'EOF'
@@ -70,7 +89,7 @@ SESSION_SECRET=turksatranc-super-secure-session-key-2025
 
 # Server Configuration
 PORT=5000
-NODE_ENV=development
+NODE_ENV=production
 EOF
 
 # package.json oluşturma
@@ -102,75 +121,285 @@ cat > $INSTALL_DIR/package.json << 'EOF'
 }
 EOF
 
-# Systemd servis dosyasını oluştur
-echo -e "${YELLOW}Systemd servis dosyası oluşturuluyor...${NC}"
-cat > $INSTALL_DIR/config/systemd/turksatranc.service << EOF
-[Unit]
-Description=TürkSatranç Online Chess Application
-After=network.target mongodb.service
-
-[Service]
-Type=simple
-User=nodejs
-WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/node $INSTALL_DIR/server/server.js
-Restart=on-failure
-Environment=NODE_ENV=production
-Environment=PORT=5000
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
-ProtectHome=true
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-
-[Install]
-WantedBy=multi-user.target
+# Nginx yapılandırma dosyasını oluştur
+echo -e "${YELLOW}Nginx yapılandırma dosyası oluşturuluyor...${NC}"
+cat > $INSTALL_DIR/config/nginx/turksatranc.conf << EOF
+server {
+    listen 80;
+    server_name turksatranc.com www.turksatranc.com;
+    
+    # HTTPS'e yönlendirme (SSL sertifikanız olduğunda etkinleştirin)
+    # return 301 https://\$host\$request_uri;
+    
+    # Statik içerik için root dizini
+    root ${INSTALL_DIR}/public;
+    
+    # Socket.io WebSocket yönlendirmesi
+    location /socket.io/ {
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-NginX-Proxy true;
+        
+        proxy_pass http://localhost:5000/socket.io/;
+        proxy_redirect off;
+        
+        # WebSocket desteği
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Bağlantı zaman aşımları
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+    
+    # Statik dosyalar için cache
+    location ~* \\.(jpg|jpeg|png|gif|ico|css|js|svg)\$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+        access_log off;
+    }
+    
+    # API isteklerini Node.js'e yönlendir
+    location /api/ {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+    
+    # Ana uygulamayı yönlendir
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # 404 ve 500 hataları
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+    
+    error_page 500 502 503 504 /500.html;
+    location = /500.html {
+        internal;
+    }
+    
+    # Güvenlik başlıkları
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data:;";
+    
+    # Log dosyaları
+    access_log /var/log/nginx/turksatranc.access.log;
+    error_log /var/log/nginx/turksatranc.error.log;
+}
 EOF
 
-# MongoDB yedekleme betiği
-echo -e "${YELLOW}MongoDB yedekleme betiği oluşturuluyor...${NC}"
+# Yedekleme betiği
+echo -e "${YELLOW}Yedekleme betiği oluşturuluyor...${NC}"
 cat > $INSTALL_DIR/config/scripts/backup.sh << 'EOF'
 #!/bin/bash
 
-# TürkSatranç MongoDB Yedekleme Betiği
+# TürkSatranç Yedekleme Betiği
+# Bu betik, TürkSatranç uygulamasının veritabanı ve dosyalarını yedekler
 
-# Yedekleme dizini
-BACKUP_DIR="/var/www/turksatranc/backups"
+# Renk kodları
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Ana dizin
+APP_DIR="/var/www/turksatranc"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="$BACKUP_DIR/turksatranc_$TIMESTAMP.gz"
+BACKUP_DIR="${APP_DIR}/backups"
+BACKUP_FILE="${BACKUP_DIR}/turksatranc_${TIMESTAMP}.tar.gz"
 
 # Yedekleme dizini oluştur
-mkdir -p $BACKUP_DIR
+mkdir -p ${BACKUP_DIR}
 
-# MongoDB yedekle
-mongodump --db turksatranc --archive=$BACKUP_FILE --gzip
+echo -e "${GREEN}=== TürkSatranç Yedekleme Betiği - $(date) ===${NC}"
 
-# Eski yedeklemeleri temizle (30 günden eski)
-find $BACKUP_DIR -name "turksatranc_*.gz" -type f -mtime +30 -delete
+# MongoDB veritabanını yedekle
+if command -v mongodump &> /dev/null; then
+    echo -e "${YELLOW}MongoDB veritabanı yedekleniyor...${NC}"
+    MONGO_BACKUP_DIR="${BACKUP_DIR}/mongodb_${TIMESTAMP}"
+    mkdir -p ${MONGO_BACKUP_DIR}
+    
+    mongodump --db turksatranc --out ${MONGO_BACKUP_DIR}
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}MongoDB yedekleme başarılı.${NC}"
+    else
+        echo -e "${RED}MongoDB yedekleme başarısız!${NC}"
+    fi
+else
+    echo -e "${YELLOW}MongoDB komutları bulunamadı, veritabanı yedekleme atlanıyor.${NC}"
+fi
 
-echo "Yedekleme tamamlandı: $BACKUP_FILE"
+# Uygulama dosyalarını yedekle
+echo -e "${YELLOW}Uygulama dosyaları yedekleniyor...${NC}"
+tar -czf ${BACKUP_FILE} \
+    --exclude="node_modules" \
+    --exclude=".git" \
+    -C ${APP_DIR} \
+    public server .env package.json
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Dosya yedekleme başarılı.${NC}"
+    
+    # MongoDB yedeğini de arşive ekle
+    if [ -d "${MONGO_BACKUP_DIR}" ]; then
+        tar -rf ${BACKUP_FILE} -C ${BACKUP_DIR} $(basename ${MONGO_BACKUP_DIR})
+        rm -rf ${MONGO_BACKUP_DIR}
+    fi
+    
+    # Yedek dosyasının boyutunu göster
+    FILESIZE=$(du -h ${BACKUP_FILE} | cut -f1)
+    echo -e "${GREEN}Yedek dosyası oluşturuldu: ${BACKUP_FILE} (${FILESIZE})${NC}"
+else
+    echo -e "${RED}Dosya yedekleme başarısız!${NC}"
+fi
+
+# Eski yedekleri temizle (son 5 yedek tutulur)
+echo -e "${YELLOW}Eski yedekler temizleniyor...${NC}"
+ls -t ${BACKUP_DIR}/turksatranc_*.tar.gz | tail -n +6 | xargs -r rm
+echo -e "${GREEN}Yedekleme işlemi tamamlandı.${NC}"
+
+exit 0
 EOF
 
-# Betiklere çalıştırma izni ver
-chmod +x $INSTALL_DIR/config/scripts/backup.sh
+# Dağıtım betiği
+echo -e "${YELLOW}Dağıtım betiği oluşturuluyor...${NC}"
+cat > $INSTALL_DIR/config/scripts/deploy.sh << 'EOF'
+#!/bin/bash
+
+# TürkSatranç Dağıtım Betiği
+# Bu betik, TürkSatranç uygulamasının güncellenmesi için kullanılır
+
+# Renk kodları
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Ana dizin
+APP_DIR="/var/www/turksatranc"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_DIR="${APP_DIR}/backups/backup_${TIMESTAMP}"
+
+# Yalnızca root veya sudo ile çalıştırılabilir
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}Bu betik root izinleri gerektirir. 'sudo' ile çalıştırın.${NC}"
+  exit 1
+fi
+
+echo -e "${GREEN}=== TürkSatranç Dağıtım Betiği - $(date) ===${NC}"
+echo -e "${YELLOW}Yedekleme işlemi başlatılıyor...${NC}"
+
+# Önce yedek al
+mkdir -p ${BACKUP_DIR}
+cp -r ${APP_DIR}/{public,server,.env,package.json} ${BACKUP_DIR}/
+
+echo -e "${YELLOW}Bağımlılıkları yükleniyor...${NC}"
+cd ${APP_DIR}
+npm install --production
+
+echo -e "${YELLOW}PM2 ile servis yeniden başlatılıyor...${NC}"
+cd ${APP_DIR}
+su - nodejs -c "cd ${APP_DIR} && pm2 restart turksatranc"
+
+# PM2 durumunu kontrol et
+if su - nodejs -c "pm2 ls | grep -q turksatranc"; then
+  echo -e "${GREEN}PM2 servisi başarıyla yeniden başlatıldı.${NC}"
+else
+  echo -e "${RED}PM2 servisi başlatılamadı! Günlükleri kontrol edin:${NC}"
+  su - nodejs -c "pm2 logs turksatranc --lines 20"
+fi
+
+echo -e "${YELLOW}Nginx yapılandırması test ediliyor...${NC}"
+nginx -t
+
+if [ $? -eq 0 ]; then
+  echo -e "${GREEN}Nginx yapılandırması geçerli.${NC}"
+  echo -e "${YELLOW}Nginx yeniden başlatılıyor...${NC}"
+  systemctl reload nginx
+else
+  echo -e "${RED}Nginx yapılandırması hatalı!${NC}"
+fi
+
+echo -e "${GREEN}Güncelleme işlemi tamamlandı! Uygulama aşağıdaki adreste çalışıyor:${NC}"
+echo -e "http://turksatranc.com"
+echo -e "${YELLOW}PM2 günlükleri:${NC} su - nodejs -c \"pm2 logs turksatranc\""
+
+exit 0
+EOF
+
+# PM2 ecosystem dosyası oluştur
+echo -e "${YELLOW}PM2 ecosystem.config.js dosyası oluşturuluyor...${NC}"
+cat > $INSTALL_DIR/ecosystem.config.js << EOF
+module.exports = {
+  apps: [{
+    name: "turksatranc",
+    script: "server/server.js",
+    instances: "max",
+    exec_mode: "cluster",
+    watch: false,
+    max_memory_restart: "500M",
+    env: {
+      NODE_ENV: "production",
+      PORT: 5000
+    },
+    error_file: "logs/err.log",
+    out_file: "logs/out.log",
+    merge_logs: true,
+    log_date_format: "YYYY-MM-DD HH:mm:ss"
+  }]
+};
+EOF
 
 # nodejs kullanıcısı oluştur
 echo -e "${YELLOW}Node.js kullanıcısı oluşturuluyor...${NC}"
 id -u nodejs &>/dev/null || useradd -r -m -s /bin/bash nodejs
 
+# Betiklere çalıştırma izni ver
+echo -e "${YELLOW}Betiklere çalıştırma izni veriliyor...${NC}"
+chmod +x $INSTALL_DIR/config/scripts/backup.sh
+chmod +x $INSTALL_DIR/config/scripts/deploy.sh
+
 # Dizin izinlerini ayarla
 echo -e "${YELLOW}Dizin izinleri ayarlanıyor...${NC}"
-# Server dizini oluşturulmadıysa oluştur
 mkdir -p $INSTALL_DIR/server
-chown -R nodejs:nodejs $INSTALL_DIR/server
-chmod -R 750 $INSTALL_DIR/server
-
-# Public dizini oluşturulmadıysa oluştur
 mkdir -p $INSTALL_DIR/public
-chown -R www-data:www-data $INSTALL_DIR/public
-chmod -R 755 $INSTALL_DIR/public
+mkdir -p $INSTALL_DIR/logs
+
+# Satranç taşı resimleri için dizin
+mkdir -p $INSTALL_DIR/public/img/chesspieces/wikipedia
+
+# Satranç taşı resimlerini indir
+echo -e "${YELLOW}Satranç taşı görselleri indiriliyor...${NC}"
+# Not: Gerçek uygulamada doğru URL'leri kullanmanız gerekecektir
+# Bu, sadece örnek bir yapıdır
+
+# Şu an için satranç taşı resimleri için yer tutucu oluşturalım
+for piece in P R N B Q K; do
+  # Beyaz taşlar
+  convert -size 100x100 xc:white -fill black -gravity center -pointsize 60 -annotate 0 "w$piece" $INSTALL_DIR/public/img/chesspieces/wikipedia/w$piece.png
+  # Siyah taşlar
+  convert -size 100x100 xc:black -fill white -gravity center -pointsize 60 -annotate 0 "b$piece" $INSTALL_DIR/public/img/chesspieces/wikipedia/b$piece.png
+done
+
+# Stil dosyasındaki shell komutlarını düzelt
+echo -e "${YELLOW}CSS dosyaları düzeltiliyor...${NC}"
+# style.css'deki shell komutlarını temizle
+grep -v "# style.css\|cat <<'EOF'\|EOF" $INSTALL_DIR/public/css/style.css > $INSTALL_DIR/public/css/style.css.tmp
+mv $INSTALL_DIR/public/css/style.css.tmp $INSTALL_DIR/public/css/style.css
 
 # NPM bağımlılıklarını yükle
 echo -e "${YELLOW}NPM bağımlılıkları yükleniyor...${NC}"
@@ -186,64 +415,29 @@ else
   pm2 --version
 fi
 
-# PM2 ecosystem dosyası oluştur
-echo -e "${YELLOW}PM2 ecosystem.config.js dosyası oluşturuluyor...${NC}"
-cat > $INSTALL_DIR/ecosystem.config.js << 'EOF'
-module.exports = {
-  apps: [{
-    name: "turksatranc",
-    script: "server/server.js",
-    instances: "max",
-    exec_mode: "cluster",
-    watch: false,
-    max_memory_restart: "300M",
-    env: {
-      NODE_ENV: "development",
-      PORT: 5000
-    },
-    env_development: {
-      NODE_ENV: "development",
-      PORT: 5000
-    },
-    error_file: "logs/err.log",
-    out_file: "logs/out.log",
-    merge_logs: true,
-    log_date_format: "YYYY-MM-DD HH:mm:ss"
-  }]
-};
-EOF
+# Dizin izinlerini ayarla
+chown -R nodejs:nodejs $INSTALL_DIR/server
+chown -R nodejs:nodejs $INSTALL_DIR/node_modules
+chown -R nodejs:nodejs $INSTALL_DIR/logs
+chown -R nodejs:nodejs $INSTALL_DIR/ecosystem.config.js
+chown -R www-data:www-data $INSTALL_DIR/public
 
-# PM2 log dizini oluştur
-mkdir -p $INSTALL_DIR/logs
-chown nodejs:nodejs $INSTALL_DIR/logs
+# Nginx yapılandırmasını kopyala
+echo -e "${YELLOW}Nginx yapılandırması kopyalanıyor...${NC}"
+cp $INSTALL_DIR/config/nginx/turksatranc.conf /etc/nginx/sites-available/
 
-# Systemd servis dosyasını sistem üzerine kopyala
-echo -e "${YELLOW}Systemd servis dosyası kopyalanıyor...${NC}"
-cp $INSTALL_DIR/config/systemd/turksatranc.service /etc/systemd/system/
-
-# Apache kurulu mu kontrol et ve gerekli modülleri etkinleştir
-if [ -x "$(command -v apache2)" ]; then
-    echo -e "${YELLOW}Apache kurulu, gerekli modüller etkinleştiriliyor...${NC}"
-    
-    # Gerekli Apache modüllerini etkinleştir
-    a2enmod rewrite
-    a2enmod proxy
-    a2enmod proxy_http
-    a2enmod headers
-    a2enmod expires
-    
-    # Apache'yi yeniden başlat
-    systemctl restart apache2
-    
-    echo -e "${GREEN}Apache yapılandırması tamamlandı.${NC}"
+# Mevcut default site'yi devre dışı bırak ve bizim sitemizi etkinleştir
+if [ -f /etc/nginx/sites-enabled/default ]; then
+  rm /etc/nginx/sites-enabled/default
 fi
 
-# Nginx kurulu mu kontrol et
-if [ -x "$(command -v nginx)" ]; then
-    echo -e "${GREEN}Nginx kurulu.${NC}"
-    # nginx config dosyasının kontrol edilmesi burada yapılmıyor
-    # bu ayrı bir dosya olarak sağlanacak
-fi
+ln -sf /etc/nginx/sites-available/turksatranc.conf /etc/nginx/sites-enabled/
+
+# Nginx yapılandırmasını test et
+nginx -t
+
+# Nginx'i yeniden başlat
+systemctl restart nginx
 
 # PM2 ile uygulamayı başlat
 echo -e "${YELLOW}PM2 ile uygulamayı başlatılıyor...${NC}"
@@ -253,32 +447,23 @@ su - nodejs -c "cd $INSTALL_DIR && pm2 start ecosystem.config.js"
 # PM2'yi sistem açılışında başlatacak şekilde ayarla
 echo -e "${YELLOW}PM2 sistem açılışına ekleniyor...${NC}"
 su - nodejs -c "pm2 save"
-pm2 startup | tail -1 > /tmp/pm2_startup_cmd.sh
-chmod +x /tmp/pm2_startup_cmd.sh
-bash /tmp/pm2_startup_cmd.sh
-rm /tmp/pm2_startup_cmd.sh
-
-# Systemd servisini de etkinleştir (yedek olarak)
-echo -e "${YELLOW}Systemd servisi de etkinleştiriliyor (yedek olarak)...${NC}"
-systemctl daemon-reload
-systemctl enable turksatranc.service
-# Systemd servisi başlatılmıyor, PM2 yerine kullanılacak
+pm2 startup systemd -u nodejs --hp /home/nodejs
 
 echo -e "${GREEN}====================================================================${NC}"
-echo -e "${GREEN}       TürkSatranç Sistemsel Bağımlılıkları Kuruldu!                ${NC}"
+echo -e "${GREEN}       TürkSatranç Kurulumu Tamamlandı!                            ${NC}"
 echo -e "${GREEN}====================================================================${NC}"
 echo -e "${YELLOW}Uygulama dizini: ${NC}$INSTALL_DIR"
-echo -e "${YELLOW}Systemd servis dosyası: ${NC}/etc/systemd/system/turksatranc.service"
-echo -e "${YELLOW}PM2 durumu: ${NC}pm2 status"
+echo -e "${YELLOW}Nginx yapılandırması: ${NC}/etc/nginx/sites-available/turksatranc.conf"
+echo -e "${YELLOW}PM2 durumu: ${NC}su - nodejs -c \"pm2 status\""
 echo -e "${YELLOW}PM2 log dosyaları: ${NC}$INSTALL_DIR/logs/"
-echo -e "${YELLOW}Systemd yedek servis: ${NC}journalctl -u turksatranc.service"
-echo -e "${YELLOW}MongoDB durumu: ${NC}systemctl status mongodb.service"
+echo -e "${YELLOW}MongoDB durumu: ${NC}systemctl status mongod"
 echo -e ""
 echo -e "${YELLOW}PM2 komutları:${NC}"
-echo -e "  pm2 restart turksatranc    # Uygulamayı yeniden başlat"
-echo -e "  pm2 stop turksatranc       # Uygulamayı durdur"
-echo -e "  pm2 logs turksatranc       # Canlı log izleme"
-echo -e "  pm2 monit                  # Monitör ekranı"
+echo -e "  su - nodejs -c \"pm2 restart turksatranc\"    # Uygulamayı yeniden başlat"
+echo -e "  su - nodejs -c \"pm2 stop turksatranc\"       # Uygulamayı durdur"
+echo -e "  su - nodejs -c \"pm2 logs turksatranc\"       # Canlı log izleme"
+echo -e "  su - nodejs -c \"pm2 monit\"                  # Monitör ekranı"
 echo -e ""
-echo -e "${YELLOW}Not: Nginx yapılandırması ayrı olarak yapılmalıdır!${NC}"
+echo -e "${YELLOW}Uygulama artık http://turksatranc.com adresinde çalışıyor olmalı.${NC}"
+echo -e "${YELLOW}DNS ayarlarınızı kontrol edin ve gerekirse bir SSL sertifikası ekleyin.${NC}"
 echo -e "${GREEN}====================================================================${NC}"
