@@ -1,0 +1,2 @@
+chmod +x /var/www/turksatranc/config/scripts/deploy.sh
+chmod +x /var/www/turksatranc/config/scripts/backup.sh

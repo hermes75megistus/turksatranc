@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil - Türk Satranç</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="shortcut icon" href="img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="site-wrapper">
+        <header class="main-header">
+            <div class="container">
+                <div class="logo">
+                    <a href="/">
+                        <img src="img/logo.png" alt="Türk Satranç Logo">
+                        <span>TürkSatranç</span>
+                    </a>
+                </div>
+                <nav class="main-nav">
+                    <ul>
+                        <li><a href="/"><i class="fas fa-chess-board"></i> Oyna</a></li>
+                        <li><a href="/siralama"><i class="fas fa-trophy"></i> Sıralama</a></li>
+                        <li><a href="/gecmis-oyunlar"><i class="fas fa-history"></i> Geçmiş Oyunlar</a></li>
+                        <li><a href="/profil" class="active"><i class="fas fa-user"></i> Profil</a></li>
+                    </ul>
+                </nav>
+                <div class="user-controls">
+                    <div class="user-info">
+                        <span id="username-display">Kullanıcı</span>
+                        <span id="elo-display">1200</span>
+                    </div>
+                    <button id="logout-btn" class="btn secondary-btn small-btn"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
+                </div>
+            </div>
+        </header>
+        
+        <main class="container">
+            <div class="page-title">
+                <h1><i class="fas fa-user-circle"></i> Profil</h1>
+            </div>
+            
+            <div class="profile-container">
+                <div class="profile-card turkish-pattern-light">
+                    <div class="profile-header">
+                        <div class="profile-avatar">
+                            <i class="fas fa-chess-king"></i>
+                        </div>
+                        <div class="profile-info">
+                            <h2 id="profile-username">Kullanıcı Adı</h2>
+                            <div class="elo-badge">
+                                <span id="profile-elo">1200</span> ELO
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-stats">
+                        <div class="stat-box">
+                            <div class="stat-value" id="games-played">0</div>
+                            <div class="stat-label">Oyun</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="wins">0</div>
+                            <div class="stat-label">Galibiyet</div>
+                        </div>
+ <div class="stat-box">
+                            <div class="stat-value" id="draws">0</div>
+                            <div class="stat-label">Beraberlik</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="losses">0</div>
+                            <div class="stat-label">Mağlubiyet</div>
+                        </div>
+                    </div>
+                    
+                    <div class="win-rate-container">
+                        <div class="win-rate-label">Kazanma Oranı</div>
+                        <div class="win-rate-bar">
+                            <div class="win-segment" id="win-segment"></div>
+                            <div class="draw-segment" id="draw-segment"></div>
+                            <div class="lose-segment" id="lose-segment"></div>
+                        </div>
+                        <div class="win-rate-stats">
+                            <div class="win-stat">
+                                <span class="win-color"></span> Galibiyet (<span id="win-percentage">0%</span>)
+                            </div>
+                            <div class="draw-stat">
+                                <span class="draw-color"></span> Beraberlik (<span id="draw-percentage">0%</span>)
+                            </div>
+                            <div class="lose-stat">
+                                <span class="lose-color"></span> Mağlubiyet (<span id="lose-percentage">0%</span>)
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info-section">
+                        <h3>Hesap Bilgileri</h3>
+                        <div class="info-row">
+                            <div class="info-label">E-posta:</div>
+                            <div class="info-value" id="profile-email">kullanici@ornek.com</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Kayıt Tarihi:</div>
+                            <div class="info-value" id="profile-registered">01.01.2025</div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-actions">
+                        <button id="edit-profile-btn" class="btn primary-btn"><i class="fas fa-edit"></i> Profili Düzenle</button>
+                        <button id="change-password-btn" class="btn secondary-btn"><i class="fas fa-key"></i> Parolayı Değiştir</button>
+                    </div>
+                </div>
+                
+                <div class="recent-games-section">
+                    <h3><i class="fas fa-history"></i> Son Oyunlar</h3>
+                    <div class="recent-games-list" id="recent-games">
+                        <!-- Yükleniyor göstergesi -->
+                        <div class="loading-indicator">
+                            <i class="fas fa-spinner fa-spin"></i> Oyunlar yükleniyor...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="main-footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="copyright">
+                        <p>&copy; 2025 TürkSatranç - Tüm hakları saklıdır.</p>
+                    </div>
+                    <div class="social-links">
+                        <a href="#" class="social-icon"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Parola değiştirme modal -->
+    <div id="password-modal" class="modal">
+        <div class="modal-content turkish-pattern-light">
+            <span class="close-modal">&times;</span>
+            <h2>Parolayı Değiştir</h2>
+            <form id="password-form">
+                <div class="form-group">
+                    <label for="current-password">Mevcut Parola</label>
+                    <input type="password" id="current-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-password">Yeni Parola</label>
+                    <input type="password" id="new-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Yeni Parola (Tekrar)</label>
+                    <input type="password" id="confirm-password" required>
+                </div>
+                <div id="password-error" class="error-message" style="display: none;"></div>
+                <button type="submit" class="btn primary-btn">Parolayı Değiştir</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="js/profil.js"></script>
+</body>
+</html>

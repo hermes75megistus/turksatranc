@@ -1,0 +1,161 @@
+.auth-page {
+    background-image: url('../img/auth-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.auth-page::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 0;
+}
+
+.auth-container {
+    position: relative;
+    z-index: 1;
+}
+
+/* Türk deseni ile özel arka plan */
+.auth-left {
+    background-color: #fff;
+    background-image: url('../img/turkish-pattern.png');
+    background-repeat: repeat;
+    position: relative;
+}
+
+.auth-left::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.85);
+    z-index: 0;
+}
+
+.auth-brand {
+    position: relative;
+    z-index: 1;
+}
+
+.auth-brand img {
+ filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.2));
+}
+
+.auth-brand h1 {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Form elemanları için özel stiller */
+.auth-form-container {
+    max-width: 400px;
+}
+
+.auth-form-container h2 {
+    position: relative;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+.auth-form-container h2::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 60px;
+    height: 3px;
+    background-color: #c81912;
+}
+
+.input-with-icon input {
+    border: 2px solid #eee;
+    padding: 14px 15px 14px 45px;
+    transition: all 0.3s ease;
+}
+
+.input-with-icon input:focus {
+    border-color: #c81912;
+    box-shadow: 0 0 0 3px rgba(200, 25, 18, 0.1);
+}
+
+.auth-btn {
+    border: none;
+    box-shadow: 0 5px 15px rgba(200, 25, 18, 0.3);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+}
+
+.auth-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(200, 25, 18, 0.4);
+}
+
+.auth-links a {
+    font-weight: 500;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.auth-links a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background-color: #c81912;
+    transition: width 0.3s ease;
+}
+
+.auth-links a:hover::after {
+    width: 100%;
+}
+
+.error-message {
+    border-left: 4px solid #c81912;
+    animation: errorShake 0.4s ease-in-out;
+}
+
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+/* Responsive Tasarım Ayarlamaları */
+@media (max-width: 768px) {
+    .auth-container {
+        max-width: 90%;
+    }
+    
+    .auth-form-container {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .auth-form-container h2 {
+        font-size: 1.8rem;
+    }
+    
+    .auth-subtitle {
+        font-size: 0.9rem;
+    }
+    
+    .input-with-icon input {
+        padding: 12px 10px 12px 40px;
+    }
+    
+    .auth-btn {
+        padding: 12px;
+    }
+}

@@ -1,0 +1,48 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # Eğer bir dosya veya dizin değilse
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # API isteklerini Node.js uygulamasına yönlendir
+  RewriteRule ^api/(.*) http://localhost:5000/api/$1 [P,L]
+
+  # Socket.io isteklerini yönlendir
+  RewriteCond %{REQUEST_URI} ^/socket.io
+  RewriteRule (.*) http://localhost:5000$1 [P,L]
+  
+  # Diğer tüm belirlenmiş rotaları Node.js uygulamasına yönlendir
+  RewriteRule ^(giris|kayit|profil|siralama|gecmis-oyunlar)$ /index.php?page=$1 [L]
+  
+  # Kök dizini index.html dosyasına yönlendir
+  RewriteRule ^$ /index.html [L]
+</IfModule>
+
+# Cache-Control başlıkları
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpg "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType application/x-javascript "access plus 1 month"
+  ExpiresByType image/x-icon "access plus 1 year"
+</IfModule>
+
+# GZIP sıkıştırma
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/plain
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/xml
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE application/xml
+  AddOutputFilterByType DEFLATE application/xhtml+xml
+  AddOutputFilterByType DEFLATE application/rss+xml
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/x-javascript
+</IfModule>

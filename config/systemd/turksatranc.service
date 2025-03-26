@@ -1,0 +1,21 @@
+[Unit]
+Description=TürkSatranç Online Chess Platform
+After=network.target mongodb.service
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/turksatranc
+ExecStart=/usr/bin/node /var/www/turksatranc/server/server.js
+Restart=on-failure
+Environment=NODE_ENV=production
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

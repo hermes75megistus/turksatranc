@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geçmiş Oyunlar - Türk Satranç</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="shortcut icon" href="img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="site-wrapper">
+        <header class="main-header">
+            <div class="container">
+                <div class="logo">
+                    <a href="/">
+                        <img src="img/logo.png" alt="Türk Satranç Logo">
+                        <span>TürkSatranç</span>
+                    </a>
+                </div>
+                <nav class="main-nav">
+                    <ul>
+                        <li><a href="/"><i class="fas fa-chess-board"></i> Oyna</a></li>
+                        <li><a href="/siralama"><i class="fas fa-trophy"></i> Sıralama</a></li>
+                        <li><a href="/gecmis-oyunlar" class="active"><i class="fas fa-history"></i> Geçmiş Oyunlar</a></li>
+                        <li><a href="/profil"><i class="fas fa-user"></i> Profil</a></li>
+                    </ul>
+                </nav>
+                <div class="user-controls">
+                    <div class="user-info">
+                        <span id="username-display">Kullanıcı</span>
+                        <span id="elo-display">1200</span>
+                    </div>
+                    <button id="logout-btn" class="btn secondary-btn small-btn"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
+                </div>
+            </div>
+        </header>
+        
+        <main class="container">
+            <div class="page-title">
+                <h1><i class="fas fa-history"></i> Geçmiş Oyunlar</h1>
+            </div>
+            
+            <div class="games-history-container">
+                <div class="games-list turkish-pattern-light">
+                    <h3>Tamamlanan Oyunlar</h3>
+                    <div class="games-filters">
+                        <select id="result-filter">
+                            <option value="all">Tüm Sonuçlar</option>
+                            <option value="win">Galibiyetler</option>
+                            <option value="loss">Mağlubiyetler</option>
+                            <option value="draw">Beraberlikler</option>
+                        </select>
+                    </div>
+                    
+                    <div id="games-history-list">
+                        <!-- Oyunlar JS ile doldurulacak -->
+                        <div class="loading-indicator">
+                            <i class="fas fa-spinner fa-spin"></i> Oyunlar yükleniyor...
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="game-view">
+                    <div id="game-details" class="game-details turkish-pattern-light">
+                        <h3>Oyun Detayları</h3>
+                        <div class="no-game-selected">
+                            <i class="fas fa-chess"></i>
+                            <p>Detaylarını görmek için bir oyun seçin</p>
+                        </div>
+                        
+                        <div id="selected-game-details" style="display: none;">
+                            <div class="game-players">
+                                <div class="white-player player-detail">
+                                    <i class="fas fa-chess-king white-piece"></i>
+                                    <span id="white-player-name">Beyaz Oyuncu</span>
+                                </div>
+                                <div class="game-result-indicator">
+                                    <span id="game-result-text">? - ?</span>
+                                </div>
+                                <div class="black-player player-detail">
+                                    <i class="fas fa-chess-king black-piece"></i>
+                                    <span id="black-player-name">Siyah Oyuncu</span>
+                                </div>
+                            </div>
+                            
+                            <div class="game-meta">
+                                <div class="meta-item">
+                                    <i class="fas fa-clock"></i> <span id="game-time">15 dk</span>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="fas fa-calendar-alt"></i> <span id="game-date">01.01.2025</span>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="fas fa-chess-pawn"></i> <span id="game-moves-count">42 hamle</span>
+                                </div>
+                            </div>
+                            
+                            <div id="game-board-container">
+                                <div id="game-board"></div>
+                            </div>
+                            
+                            <div class="game-controls">
+                                <button id="first-move" class="btn control-btn"><i class="fas fa-step-backward"></i></button>
+                                <button id="prev-move" class="btn control-btn"><i class="fas fa-chevron-left"></i></button>
+                                <button id="play-pause" class="btn control-btn"><i class="fas fa-play"></i></button>
+                                <button id="next-move" class="btn control-btn"><i class="fas fa-chevron-right"></i></button>
+                                <button id="last-move" class="btn control-btn"><i class="fas fa-step-forward"></i></button>
+                                
+                                <select id="replay-speed">
+                                    <option value="500">1x</option>
+                                    <option value="250">2x</option>
+                                    <option value="125">4x</option>
+                                </select>
+                            </div>
+                            
+                            <div class="moves-history">
+                                <div id="pgn-display" class="pgn-display"></div>
+                            </div>
+                            
+                            <div class="game-actions">
+                                <button id="download-pgn" class="btn primary-btn"><i class="fas fa-download"></i> PGN İndir</button>
+                                <button id="share-game" class="btn secondary-btn"><i class="fas fa-share-alt"></i> Paylaş</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="main-footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="copyright">
+                        <p>&copy; 2025 TürkSatranç - Tüm hakları saklıdır.</p>
+                    </div>
+                    <div class="social-links">
+                        <a href="#" class="social-icon"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Paylaşım modal -->
+    <div id="share-modal" class="modal">
+        <div class="modal-content turkish-pattern-light">
+            <span class="close-modal">&times;</span>
+            <h2>Oyunu Paylaş</h2>
+            <p>Aşağıdaki bağlantıyı kopyalayarak oyunu arkadaşlarınızla paylaşabilirsiniz:</p>
+            <div class="share-link-container">
+                <input type="text" id="share-link" readonly>
+                <button id="copy-btn" class="btn"><i class="fas fa-copy"></i></button>
+            </div>
+            <div class="social-share">
+                <a href="#" class="social-share-btn" id="share-facebook"><i class="fab fa-facebook-f"></i> Facebook</a>
+                <a href="#" class="social-share-btn" id="share-twitter"><i class="fab fa-twitter"></i> Twitter</a>
+                <a href="#" class="social-share-btn" id="share-whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <script src="js/gecmis-oyunlar.js"></script>
+</body>
+</html>

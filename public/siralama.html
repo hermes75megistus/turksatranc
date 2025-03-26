@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sıralama - Türk Satranç</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="shortcut icon" href="img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="site-wrapper">
+        <header class="main-header">
+            <div class="container">
+                <div class="logo">
+                    <a href="/">
+                        <img src="img/logo.png" alt="Türk Satranç Logo">
+                        <span>TürkSatranç</span>
+                    </a>
+                </div>
+                <nav class="main-nav">
+                    <ul>
+                        <li><a href="/"><i class="fas fa-chess-board"></i> Oyna</a></li>
+                        <li><a href="/siralama" class="active"><i class="fas fa-trophy"></i> Sıralama</a></li>
+                        <li><a href="/gecmis-oyunlar"><i class="fas fa-history"></i> Geçmiş Oyunlar</a></li>
+                        <li><a href="/profil"><i class="fas fa-user"></i> Profil</a></li>
+                    </ul>
+                </nav>
+                <div class="user-controls">
+                    <div class="user-info">
+                        <span id="username-display">Kullanıcı</span>
+                        <span id="elo-display">1200</span>
+                    </div>
+                    <button id="logout-btn" class="btn secondary-btn small-btn"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
+                </div>
+            </div>
+        </header>
+        
+        <main class="container">
+            <div class="page-title">
+                <h1><i class="fas fa-trophy"></i> Oyuncu Sıralaması</h1>
+            </div>
+            
+            <div class="ranking-container turkish-pattern-light">
+                <div class="ranking-filters">
+                    <div class="search-box">
+                        <input type="text" id="search-input" placeholder="Kullanıcı adı ara...">
+                        <button id="search-btn" class="btn"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+                
+                <div class="ranking-table-container">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>Sıra</th>
+                                <th>Kullanıcı</th>
+                                <th>ELO</th>
+                                <th>Oyun</th>
+                                <th>G</th>
+                                <th>B</th>
+                                <th>M</th>
+                                <th>Oran</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ranking-body">
+                            <!-- Tablo satırları JS ile doldurulacak -->
+                            <tr class="loading-row">
+                                <td colspan="8">
+                                    <div class="loading-indicator">
+                                        <i class="fas fa-spinner fa-spin"></i> Sıralama verileri yükleniyor...
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="ranking-pagination">
+                    <button id="prev-page" class="btn pagination-btn" disabled><i class="fas fa-chevron-left"></i></button>
+                    <span id="page-info">Sayfa 1</span>
+                    <button id="next-page" class="btn pagination-btn"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+            
+            <div class="ranking-info">
+                <h3>ELO Puanlama Sistemi Hakkında</h3>
+                <p>
+                    ELO puanlama sistemi, satranç oyuncularının göreceli beceri seviyelerini belirlemek için 
+                    kullanılan matematiksel bir derecelendirme sistemidir. Bu sistem, fizikçi Arpad Elo tarafından 
+                    geliştirilmiştir ve oyuncuların kazandıkları veya kaybettikleri maçlar sonucunda puanları 
+                    güncellenir.
+                </p>
+                <p>
+                    TürkSatranç platformunda, her yeni oyuncu 1200 ELO puanı ile başlar. Bir oyuncu, 
+                    kendisinden daha yüksek puanlı bir rakibi yendiğinde daha fazla puan kazanır; daha düşük 
+                    puanlı bir rakibe kaybettiğinde ise daha fazla puan kaybeder.
+                </p>
+            </div>
+        </main>
+        
+        <footer class="main-footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="copyright">
+                        <p>&copy; 2025 TürkSatranç - Tüm hakları saklıdır.</p>
+                    </div>
+                    <div class="social-links">
+                        <a href="#" class="social-icon"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="js/siralama.js"></script>
+</body>
+</html>
