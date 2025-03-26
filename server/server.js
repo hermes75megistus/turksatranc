@@ -45,7 +45,8 @@ const UserSchema = new mongoose.Schema({
   gamesPlayed: { type: Number, default: 0 },
   wins: { type: Number, default: 0 },
   losses: { type: Number, default: 0 },
-  draws: { type: Number, default: 0 }
+  draws: { type: Number, default: 0 },
+  isGuest: { type: Boolean, default: false } // Misafir kullanıcı olup olmadığı
 });
 
 const User = mongoose.model('User', UserSchema);
@@ -103,7 +104,7 @@ const rateLimiter = (req, res, next) => {
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true, // Misafir kullanıcılar için true olmalı
   store: MongoStore.create({ 
     mongoUrl: MONGODB_URI,
     ttl: 60 * 60 * 24 // 1 gün
@@ -116,17 +117,53 @@ app.use(session({
   }
 }));
 
-// Auth middleware
-const isAuthenticated = (req, res, next) => {
+// Auth middleware - Giriş yapılmamışsa misafir kullanıcı oluştur
+const isAuthenticated = async (req, res, next) => {
+  // Eğer oturum zaten varsa devam et
   if (req.session.userId) {
     return next();
   }
   
-  if (req.xhr || req.headers.accept && req.headers.accept.indexOf('json') > -1) {
-    return res.status(401).json({ error: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
+  // API istekleri için 401 hatası döndür
+  if (req.path.startsWith('/api/') && req.path !== '/api/misafir-giris') {
+    if (req.xhr || req.headers.accept && req.headers.accept.indexOf('json') > -1) {
+      return res.status(401).json({ error: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
+    }
   }
   
-  res.redirect('/giris');
+  // HTML sayfası istekleri için giriş sayfasına yönlendir
+  if (!req.path.startsWith('/api/') && req.path !== '/giris' && req.path !== '/kayit' && req.path !== '/') {
+    return res.redirect('/giris');
+  }
+  
+  // Ana sayfa veya API dışındaki istekler için devam et
+  next();
+};
+
+// Misafir kullanıcı oluşturma fonksiyonu
+const createGuestUser = async () => {
+  try {
+    const guestUsername = `Misafir_${Math.random().toString(36).substring(2, 10)}`;
+    const guestEmail = `${guestUsername}@turksatranc.com`;
+    const guestPassword = Math.random().toString(36).substring(2, 15);
+    
+    // Parolayı hashle
+    const hashedPassword = await bcrypt.hash(guestPassword, 10);
+    
+    // Misafir kullanıcı oluştur
+    const guestUser = new User({
+      username: guestUsername,
+      email: guestEmail,
+      password: hashedPassword,
+      isGuest: true
+    });
+    
+    await guestUser.save();
+    return guestUser;
+  } catch (error) {
+    console.error('Misafir kullanıcı oluşturma hatası:', error);
+    throw error;
+  }
 };
 
 // Express error handling middleware
@@ -142,6 +179,31 @@ app.get('/giris', (req, res) => {
 
 app.get('/kayit', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/kayit.html'));
+});
+
+// Misafir giriş API'si
+app.post('/api/misafir-giris', async (req, res) => {
+  try {
+    // Misafir kullanıcı oluştur
+    const guestUser = await createGuestUser();
+    
+    // Oturumu başlat
+    req.session.userId = guestUser._id;
+    req.session.isGuest = true;
+    
+    res.json({ 
+      success: true, 
+      redirect: '/',
+      user: {
+        username: guestUser.username,
+        elo: guestUser.elo,
+        isGuest: true
+      }
+    });
+  } catch (error) {
+    console.error('Misafir giriş hatası:', error);
+    res.status(500).json({ error: 'Misafir giriş işlemi başarısız oldu' });
+  }
 });
 
 app.post('/api/kayit', async (req, res) => {
@@ -195,6 +257,7 @@ app.post('/api/kayit', async (req, res) => {
     
     // Oturum başlatma
     req.session.userId = newUser._id;
+    req.session.isGuest = false;
     
     res.status(201).json({ success: true, redirect: '/' });
   } catch (error) {
@@ -239,6 +302,8 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
     
     // Oturum başlatma
     req.session.userId = user._id;
+    req.session.isGuest = false;
+    
     console.log('Kullanıcı girişi yapıldı:', username);
     
     res.json({ success: true, redirect: '/' });
@@ -259,13 +324,22 @@ app.get('/api/cikis', (req, res) => {
   });
 });
 
-// Kullanıcı profil sayfası
+// Kullanıcı profil sayfası - Auth gerektirir
 app.get('/profil', isAuthenticated, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/profil.html'));
 });
 
-app.get('/api/kullanici', isAuthenticated, async (req, res) => {
+app.get('/api/kullanici', async (req, res) => {
   try {
+    // Kullanıcı girişi yoksa misafir kullanıcı bilgisi döndür
+    if (!req.session.userId) {
+      return res.json({
+        username: 'Misafir',
+        elo: 1200,
+        isGuest: true
+      });
+    }
+    
     console.log('Kullanıcı bilgisi isteniyor, userId:', req.session.userId);
     const user = await User.findById(req.session.userId).select('-password');
     if (!user) {
@@ -319,7 +393,7 @@ app.post('/api/sifre-degistir', isAuthenticated, async (req, res) => {
 });
 
 // Ana sayfa ve diğer sayfalar
-app.get('/', isAuthenticated, (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
@@ -392,11 +466,7 @@ app.get('/api/gecmis-oyunlar', isAuthenticated, async (req, res) => {
 
 // Default route
 app.get('*', (req, res) => {
-  if (req.session.userId) {
-    res.redirect('/');
-  } else {
-    res.redirect('/giris');
-  }
+  res.redirect('/');
 });
 
 // Socket.io - Oyun işlemleri
@@ -407,30 +477,61 @@ const waitingPlayers = [];
 const activeGames = new Map();
 const userSockets = new Map(); // Kullanıcı ID - Socket ID eşleşmesi
 
-// Socket kimlik doğrulama için middleware
-io.use((socket, next) => {
+// Socket kimlik doğrulama için middleware - Misafir kullanıcılar için izin ver
+io.use(async (socket, next) => {
+  // Session bilgisini al
   const sessionId = socket.handshake.auth.sessionId || 
                    (socket.request.headers.cookie || '').split('connect.sid=')[1];
   
+  // Session id yoksa misafir kullanıcı oluştur
   if (!sessionId) {
-    return next(new Error('authentication_error'));
+    try {
+      const guestUser = await createGuestUser();
+      socket.userId = guestUser._id;
+      socket.isGuest = true;
+      socket.username = guestUser.username;
+      return next();
+    } catch (error) {
+      return next(new Error('Misafir kullanıcı oluşturulamadı'));
+    }
   }
   
   // Session verilerini çöz ve kullanıcı kimliğini al
-  // Not: Bu basitleştirilmiş bir örnektir. Gerçek uygulamada session store'dan
-  // session verilerini almanız gerekir.
-  socket.request.session = session;
-  
-  if (socket.request.session && socket.request.session.userId) {
-    socket.userId = socket.request.session.userId;
-    return next();
+  try {
+    // Var olan oturumu kullan
+    socket.request.session = session;
+    
+    if (socket.request.session && socket.request.session.userId) {
+      socket.userId = socket.request.session.userId;
+      socket.isGuest = socket.request.session.isGuest || false;
+      
+      // Kullanıcı adını al (isteğe bağlı)
+      try {
+        const user = await User.findById(socket.userId);
+        if (user) {
+          socket.username = user.username;
+        }
+      } catch (err) {
+        console.error('Kullanıcı bilgisi alınamadı:', err);
+      }
+      
+      return next();
+    } else {
+      // Oturum yoksa misafir kullanıcı oluştur
+      const guestUser = await createGuestUser();
+      socket.userId = guestUser._id;
+      socket.isGuest = true;
+      socket.username = guestUser.username;
+      return next();
+    }
+  } catch (error) {
+    console.error('Socket kimlik doğrulama hatası:', error);
+    return next(new Error('Kimlik doğrulama hatası'));
   }
-  
-  return next(new Error('authentication_error'));
 });
 
 io.on('connection', async (socket) => {
-  console.log(`Yeni bağlantı: ${socket.id}`);
+  console.log(`Yeni bağlantı: ${socket.id}, Kullanıcı: ${socket.userId}, Misafir: ${socket.isGuest}`);
   
   // Tüm socket hatalarını yakalama
   socket.on('error', (error) => {
@@ -442,33 +543,40 @@ io.on('connection', async (socket) => {
     try {
       console.log('Kimlik doğrulama isteği:', userId);
       
-      // Socket'ten gelen userId ile session'daki userId'nin eşleşip eşleşmediğini kontrol et
-      if (!socket.userId || socket.userId.toString() !== userId.toString()) {
-        console.log('Kimlik doğrulama başarısız: Session ve gönderilen userId uyuşmuyor');
-        socket.emit('error', { message: 'Kimlik doğrulama başarısız', redirect: '/giris' });
-        return;
-      }
-      
-      const user = await User.findById(userId);
+      // Misafir kullanıcı için veya normal kullanıcı için kimliği doğrula
+      const user = await User.findById(userId || socket.userId);
       if (user) {
-        userSockets.set(userId, socket.id);
-        console.log(`Kullanıcı ${user.username} bağlandı`);
+        userSockets.set(user._id, socket.id);
+        socket.userId = user._id;
+        socket.username = user.username;
+        socket.isGuest = user.isGuest || false;
+        console.log(`Kullanıcı ${user.username} bağlandı, Misafir: ${socket.isGuest}`);
       } else {
         console.log('Kimlik doğrulama başarısız: Kullanıcı bulunamadı');
-        socket.emit('error', { message: 'Kullanıcı bulunamadı', redirect: '/giris' });
+        socket.emit('error', { message: 'Kullanıcı bulunamadı' });
       }
     } catch (error) {
       console.error('Kimlik doğrulama hatası:', error);
-      socket.emit('error', { message: 'Kimlik doğrulama hatası', redirect: '/giris' });
+      socket.emit('error', { message: 'Kimlik doğrulama hatası' });
     }
   });
 
   // Oyuncu eşleşme için arama
   socket.on('find_match', async (timeControl) => {
     if (!socket.userId) {
-      console.log('Eşleşme isteği reddedildi: Kullanıcı kimliği yok');
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
-      return;
+      try {
+        // Misafir kullanıcı oluştur
+        const guestUser = await createGuestUser();
+        socket.userId = guestUser._id;
+        socket.isGuest = true;
+        socket.username = guestUser.username;
+        userSockets.set(guestUser._id, socket.id);
+        console.log(`Misafir kullanıcı ${guestUser.username} oluşturuldu ve bağlandı`);
+      } catch (error) {
+        console.error('Misafir kullanıcı oluşturma hatası:', error);
+        socket.emit('error', { message: 'Misafir kullanıcı oluşturulamadı' });
+        return;
+      }
     }
     
     console.log(`Oyuncu ${socket.userId} eşleşme arıyor, süre kontrolü: ${timeControl} dakika`);
@@ -476,9 +584,9 @@ io.on('connection', async (socket) => {
     try {
       const user = await User.findById(socket.userId);
       
-  if (!user) {
+      if (!user) {
         console.log('Kullanıcı bulunamadı:', socket.userId);
-        socket.emit('error', { message: 'Kullanıcı bulunamadı', redirect: '/giris' });
+        socket.emit('error', { message: 'Kullanıcı bulunamadı' });
         return;
       }
       
@@ -507,7 +615,7 @@ io.on('connection', async (socket) => {
         
         if (!whitePlayer || !blackPlayer) {
           console.log('Eşleşme başarısız: Oyunculardan biri bulunamadı');
-          socket.emit('error', { message: 'Eşleşme başarısız', redirect: '/giris' });
+          socket.emit('error', { message: 'Eşleşme başarısız' });
           return;
         }
         
@@ -597,7 +705,7 @@ io.on('connection', async (socket) => {
   // Hamle yapma
   socket.on('move', async ({ gameId, move, fen, pgn }) => {
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
+      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
       return;
     }
     
@@ -608,7 +716,7 @@ io.on('connection', async (socket) => {
     }
     
     // Hamle yapma sırasını kontrol et
-    const player = game.players.find(p => p.id === socket.userId);
+    const player = game.players.find(p => p.id.toString() === socket.userId.toString());
     if (!player) {
       console.log('Bu oyuncu bu oyuna ait değil');
       return;
@@ -644,7 +752,7 @@ io.on('connection', async (socket) => {
       game.lastMoveTime = now;
       
       // Rakibe bildir
-      const opponent = game.players.find(p => p.id !== socket.userId);
+      const opponent = game.players.find(p => p.id.toString() !== socket.userId.toString());
       if (opponent) {
         const opponentSocketId = userSockets.get(opponent.id);
         if (opponentSocketId) {
@@ -665,7 +773,7 @@ io.on('connection', async (socket) => {
   // Oyun bitti
   socket.on('game_over', async ({ gameId, result }) => {
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
+      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
       return;
     }
     
@@ -676,7 +784,7 @@ io.on('connection', async (socket) => {
     }
     
     try {
-      const player = game.players.find(p => p.id === socket.userId);
+      const player = game.players.find(p => p.id.toString() === socket.userId.toString());
       if (!player) return;
       
       // Oyun durumunu güncelle
@@ -700,7 +808,7 @@ io.on('connection', async (socket) => {
         whitePlayerResult = player.color === 'white' ? 'loss' : 'win';
         blackPlayerResult = player.color === 'white' ? 'win' : 'loss';
       } else if (result === 'timeout') {
-       // Süre doldu - süre aşımı yapan oyuncu kaybetti
+        // Süre doldu - süre aşımı yapan oyuncu kaybetti
         gameResult = player.color === 'white' ? 'black' : 'white';
         whitePlayerResult = player.color === 'white' ? 'loss' : 'win';
         blackPlayerResult = player.color === 'white' ? 'win' : 'loss';
@@ -721,56 +829,69 @@ io.on('connection', async (socket) => {
         return;
       }
       
-      // Basit ELO hesaplama
-      const kFactor = 32; // ELO değişim faktörü
-      
-      // Beklenen sonuçlar
-      const expectedWhite = 1 / (1 + Math.pow(10, (blackPlayer.elo - whitePlayer.elo) / 400));
-      const expectedBlack = 1 / (1 + Math.pow(10, (whitePlayer.elo - blackPlayer.elo) / 400));
-      
-      // Gerçek sonuçlar
-      let actualWhite, actualBlack;
-      
-      if (gameResult === 'white') {
-        actualWhite = 1;
-        actualBlack = 0;
-      } else if (gameResult === 'black') {
-        actualWhite = 0;
-        actualBlack = 1;
-      } else {
-        // Berabere
-        actualWhite = 0.5;
-        actualBlack = 0.5;
+      // Misafir kullanıcıları istatistik güncellemeden hariç tut
+      if (!whitePlayer.isGuest && !blackPlayer.isGuest) {
+        // Basit ELO hesaplama
+        const kFactor = 32; // ELO değişim faktörü
+        
+        // Beklenen sonuçlar
+        const expectedWhite = 1 / (1 + Math.pow(10, (blackPlayer.elo - whitePlayer.elo) / 400));
+        const expectedBlack = 1 / (1 + Math.pow(10, (whitePlayer.elo - blackPlayer.elo) / 400));
+        
+        // Gerçek sonuçlar
+        let actualWhite, actualBlack;
+        
+        if (gameResult === 'white') {
+          actualWhite = 1;
+          actualBlack = 0;
+        } else if (gameResult === 'black') {
+          actualWhite = 0;
+          actualBlack = 1;
+        } else {
+          // Berabere
+          actualWhite = 0.5;
+          actualBlack = 0.5;
+        }
+        
+        // Yeni ELO puanları
+        const newWhiteElo = Math.round(whitePlayer.elo + kFactor * (actualWhite - expectedWhite));
+        const newBlackElo = Math.round(blackPlayer.elo + kFactor * (actualBlack - expectedBlack));
+        
+        // Beyaz oyuncuyu güncelle - misafir olmayan oyuncular için
+        if (!whitePlayer.isGuest) {
+          const whiteUpdate = { elo: newWhiteElo, $inc: { gamesPlayed: 1 } };
+          if (whitePlayerResult === 'win') whiteUpdate.$inc.wins = 1;
+          else if (whitePlayerResult === 'loss') whiteUpdate.$inc.losses = 1;
+          else whiteUpdate.$inc.draws = 1;
+          
+          await User.findByIdAndUpdate(whitePlayer._id, whiteUpdate);
+        }
+        
+        // Siyah oyuncuyu güncelle - misafir olmayan oyuncular için
+        if (!blackPlayer.isGuest) {
+          const blackUpdate = { elo: newBlackElo, $inc: { gamesPlayed: 1 } };
+          if (blackPlayerResult === 'win') blackUpdate.$inc.wins = 1;
+          else if (blackPlayerResult === 'loss') blackUpdate.$inc.losses = 1;
+          else blackUpdate.$inc.draws = 1;
+          
+          await User.findByIdAndUpdate(blackPlayer._id, blackUpdate);
+        }
       }
-      
-      // Yeni ELO puanları
-      const newWhiteElo = Math.round(whitePlayer.elo + kFactor * (actualWhite - expectedWhite));
-      const newBlackElo = Math.round(blackPlayer.elo + kFactor * (actualBlack - expectedBlack));
-      
-      // Beyaz oyuncuyu güncelle
-      const whiteUpdate = { elo: newWhiteElo, $inc: { gamesPlayed: 1 } };
-      if (whitePlayerResult === 'win') whiteUpdate.$inc.wins = 1;
-      else if (whitePlayerResult === 'loss') whiteUpdate.$inc.losses = 1;
-      else whiteUpdate.$inc.draws = 1;
-      
-      await User.findByIdAndUpdate(whitePlayer._id, whiteUpdate);
-      
-      // Siyah oyuncuyu güncelle
-      const blackUpdate = { elo: newBlackElo, $inc: { gamesPlayed: 1 } };
-      if (blackPlayerResult === 'win') blackUpdate.$inc.wins = 1;
-      else if (blackPlayerResult === 'loss') blackUpdate.$inc.losses = 1;
-      else blackUpdate.$inc.draws = 1;
-      
-      await User.findByIdAndUpdate(blackPlayer._id, blackUpdate);
       
       // İki oyuncuya da bilgi gönder
       game.players.forEach(p => {
         const playerSocketId = userSockets.get(p.id);
         if (playerSocketId) {
+          // Misafir kullanıcılarda ELO değişimi olmaz
+          const player = p.color === 'white' ? whitePlayer : blackPlayer;
+          const opponent = p.color === 'white' ? blackPlayer : whitePlayer;
+          const eloChange = player.isGuest ? 0 : 
+            (p.color === 'white' ? (newWhiteElo - whitePlayer.elo) : (newBlackElo - blackPlayer.elo));
+          
           io.to(playerSocketId).emit('game_ended', { 
             result: gameResult,
             playerColor: p.color,
-            eloChange: p.color === 'white' ? (newWhiteElo - whitePlayer.elo) : (newBlackElo - blackPlayer.elo)
+            eloChange: eloChange
           });
         }
       });
@@ -788,7 +909,7 @@ io.on('connection', async (socket) => {
   // Süre aşımı
   socket.on('time_out', async ({ gameId }) => {
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
+      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
       return;
     }
     
@@ -796,7 +917,7 @@ io.on('connection', async (socket) => {
     if (!game) return;
     
     try {
-      const player = game.players.find(p => p.id === socket.userId);
+      const player = game.players.find(p => p.id.toString() === socket.userId.toString());
       if (!player) return;
       
       // Süre kontrolü için güvenlik kontrolü
@@ -819,14 +940,14 @@ io.on('connection', async (socket) => {
   // Sohbet mesajı
   socket.on('send_message', ({ gameId, message }) => {
     if (!socket.userId) {
-      socket.emit('error', { message: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
+      socket.emit('error', { message: 'Giriş yapmanız gerekiyor' });
       return;
     }
     
     const game = activeGames.get(gameId);
     if (!game) return;
     
-    const player = game.players.find(p => p.id === socket.userId);
+    const player = game.players.find(p => p.id.toString() === socket.userId.toString());
     if (!player) return;
     
     // Mesaj içerik kontrolü
@@ -865,16 +986,16 @@ io.on('connection', async (socket) => {
       console.log(`Oyuncu bağlantısı kesildi: ${socket.userId}`);
       
       // Bekleme listesinden kaldır
-      const waitingIndex = waitingPlayers.findIndex(p => p.id === socket.userId);
+      const waitingIndex = waitingPlayers.findIndex(p => p.id.toString() === socket.userId.toString());
       if (waitingIndex !== -1) {
         waitingPlayers.splice(waitingIndex, 1);
       }
       
       // Aktif oyunları işle
       for (const [gameId, game] of activeGames.entries()) {
-        const playerIndex = game.players.findIndex(p => p.id === socket.userId);
+        const playerIndex = game.players.findIndex(p => p.id.toString() === socket.userId.toString());
         if (playerIndex !== -1) {
-          const opponent = game.players.find(p => p.id !== socket.userId);
+          const opponent = game.players.find(p => p.id.toString() !== socket.userId.toString());
           if (opponent) {
             const opponentSocketId = userSockets.get(opponent.id);
             if (opponentSocketId) {
