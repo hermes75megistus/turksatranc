@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turnuva Detayı - Türk Satranç</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/turnuvalar.css">
+    <link rel="shortcut icon" href="/img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="site-wrapper">
+        <header class="main-header">
+            <div class="container">
+                <div class="logo">
+                    <a href="/">
+                        <img src="/img/logo.png" alt="Türk Satranç Logo">
+                        <span>TürkSatranç</span>
+                    </a>
+                </div>
+                <nav class="main-nav">
+                    <ul>
+                        <li><a href="/"><i class="fas fa-chess-board"></i> Oyna</a></li>
+                        <li><a href="/siralama"><i class="fas fa-trophy"></i> Sıralama</a></li>
+                        <li><a href="/gecmis-oyunlar"><i class="fas fa-history"></i> Geçmiş Oyunlar</a></li>
+                        <li><a href="/profil"><i class="fas fa-user"></i> Profil</a></li>
+                        <li><a href="/turnuvalar" class="active"><i class="fas fa-medal"></i> Turnuvalar</a></li>
+                    </ul>
+                </nav>
+                <div class="user-controls">
+                    <div class="user-info">
+                        <span id="username-display">Kullanıcı</span>
+                        <span id="elo-display">1200</span>
+                    </div>
+                    <button id="logout-btn" class="btn secondary-btn small-btn"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
+                </div>
+            </div>
+        </header>
+        
+        <main class="container">
+            <div class="page-header">
+                <a href="/turnuvalar" class="back-link"><i class="fas fa-arrow-left"></i> Turnuvalara Dön</a>
+                <h1 id="tournament-name">Turnuva Detayı</h1>
+                <div id="tournament-status" class="status-badge status-registration">Kayıt Açık</div>
+            </div>
+            
+            <div class="loading-container" id="loading-container">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Turnuva bilgileri yükleniyor...</p>
+            </div>
+            
+            <div class="tournament-detail-container" id="tournament-detail-container" style="display: none;">
+                <div class="tournament-info-card turkish-pattern-light">
+                    <div class="tournament-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-user"></i>
+                            <span>Organizatör: <span id="tournament-creator">Kullanıcı</span></span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Başlangıç: <span id="tournament-start">01.01.2025</span></span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-clock"></i>
+                            <span>Süre: <span id="tournament-time">15</span> dakika</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-users"></i>
+                            <span>Katılımcılar: <span id="tournament-participants">0</span>/<span id="tournament-max-participants">16</span></span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-layer-group"></i>
+                            <span>Tur: <span id="tournament-rounds">4</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="tournament-description" id="tournament-description">
+                        <p>Turnuva açıklaması burada görünecek.</p>
+                    </div>
+                    
+                    <div class="tournament-actions" id="tournament-actions">
+                        <button id="join-btn" class="btn primary-btn"><i class="fas fa-sign-in-alt"></i> Turnuvaya Katıl</button>
+                        <button id="leave-btn" class="btn secondary-btn" style="display: none;"><i class="fas fa-sign-out-alt"></i> Turnuvadan Ayrıl</button>
+                        <button id="start-btn" class="btn primary-btn" style="display: none;"><i class="fas fa-play"></i> Turnuvayı Başlat</button>
+                    </div>
+                </div>
+                
+                <div class="tournament-tabs">
+                    <div class="tabs-nav">
+                        <button class="tab-btn active" data-tab="participants">Katılımcılar</button>
+                        <button class="tab-btn" data-tab="standings">Sıralama</button>
+                        <button class="tab-btn" data-tab="matches">Eşleşmeler</button>
+                    </div>
+                    
+                    <div class="tab-content active" id="participants-tab">
+                        <div class="participants-list" id="participants-list">
+                            <!-- Katılımcılar JavaScript ile dolacak -->
+                            <div class="no-data">Henüz katılımcı bulunmuyor.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" id="standings-tab">
+                        <div class="standings-table-container">
+                            <table class="standings-table">
+                                <thead>
+                                    <tr>
+                                        <th>Sıra</th>
+                                        <th>Oyuncu</th>
+                                        <th>Puan</th>
+                                        <th>Oyun</th>
+                                        <th>G</th>
+                                        <th>B</th>
+                                        <th>M</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="standings-list">
+                                    <!-- Sıralama JavaScript ile dolacak -->
+                                    <tr>
+                                        <td colspan="7" class="no-data">Turnuva henüz başlamamış veya veri yok.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" id="matches-tab">
+                        <div class="matches-container" id="matches-container">
+                            <!-- Eşleşmeler JavaScript ile dolacak -->
+                            <div class="no-data">Turnuva henüz başlamadı veya eşleşme bulunmuyor.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="main-footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="copyright">
+                        <p>&copy; 2025 TürkSatranç - Tüm hakları saklıdır.</p>
+                    </div>
+
+                  <div class="copyright">
+                        <p>&copy; 2025 TürkSatranç - Tüm hakları saklıdır.</p>
+                    </div>
+                    <div class="social-links">
+                        <a href="#" class="social-icon"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Bilgi Modal -->
+    <div id="info-modal" class="modal">
+        <div class="modal-content turkish-pattern-light">
+            <span class="close-modal">&times;</span>
+            <h2 id="info-title">Bilgi</h2>
+            <p id="info-message">Bilgi mesajı burada görünecek.</p>
+            <div class="modal-actions">
+                <button id="info-ok-btn" class="btn primary-btn">Tamam</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elementleri
+            const tournamentName = document.getElementById('tournament-name');
+            const tournamentStatus = document.getElementById('tournament-status');
+            const tournamentCreator = document.getElementById('tournament-creator');
+            const tournamentStart = document.getElementById('tournament-start');
+            const tournamentTime = document.getElementById('tournament-time');
+            const tournamentParticipants = document.getElementById('tournament-participants');
+            const tournamentMaxParticipants = document.getElementById('tournament-max-participants');
+            const tournamentRounds = document.getElementById('tournament-rounds');
+            const tournamentDescription = document.getElementById('tournament-description');
+            const tournamentActions = document.getElementById('tournament-actions');
+            const joinBtn = document.getElementById('join-btn');
+            const leaveBtn = document.getElementById('leave-btn');
+            const startBtn = document.getElementById('start-btn');
+            const participantsList = document.getElementById('participants-list');
+            const standingsList = document.getElementById('standings-list');
+            const matchesContainer = document.getElementById('matches-container');
+            const loadingContainer = document.getElementById('loading-container');
+            const tournamentDetailContainer = document.getElementById('tournament-detail-container');
+            const usernameDisplay = document.getElementById('username-display');
+            const eloDisplay = document.getElementById('elo-display');
+            const logoutBtn = document.getElementById('logout-btn');
+            
+            // Sekme butonları
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            // Modal elementleri
+            const infoModal = document.getElementById('info-modal');
+            const infoTitle = document.getElementById('info-title');
+            const infoMessage = document.getElementById('info-message');
+            const infoOkBtn = document.getElementById('info-ok-btn');
+            const closeModalBtns = document.querySelectorAll('.close-modal');
+            
+            // Durum değişkenleri
+            let userId = null;
+            let isCreator = false;
+            let isParticipant = false;
+            let tournamentData = null;
+            
+            // URL'den turnuva ID'sini al
+            const tournamentId = window.location.pathname.split('/').pop();
+            
+            // Kullanıcı bilgilerini yükle
+            async function loadUserInfo() {
+                try {
+                    const response = await fetch('/api/kullanici', {
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        window.location.href = '/giris';
+                        return;
+                    }
+                    
+                    const userData = await response.json();
+                    userId = userData._id;
+                    
+                    // Kullanıcı bilgilerini göster
+                    usernameDisplay.textContent = userData.username;
+                    eloDisplay.textContent = userData.elo;
+                    usernameDisplay.setAttribute('data-id', userData._id);
+                    
+                    // Turnuva bilgilerini yükle
+                    loadTournamentDetails();
+                } catch (error) {
+                    console.error('Kullanıcı bilgisi yükleme hatası:', error);
+                    showInfoModal('Hata', 'Kullanıcı bilgisi alınamadı.');
+                }
+            }
+            
+            // Turnuva bilgilerini yükle
+            async function loadTournamentDetails() {
+                try {
+                    const response = await fetch(`/api/turnuvalar/${tournamentId}`, {
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            showInfoModal('Hata', 'Turnuva bulunamadı.', () => {
+                                window.location.href = '/turnuvalar';
+                            });
+                        } else {
+                            showInfoModal('Hata', 'Turnuva bilgileri alınamadı.');
+                        }
+                        return;
+                    }
+                    
+                    tournamentData = await response.json();
+                    
+                    // Turnuva bilgilerini göster
+                    displayTournamentDetails(tournamentData);
+                    
+                    // Yükleme ekranını gizle, turnuva detaylarını göster
+                    loadingContainer.style.display = 'none';
+                    tournamentDetailContainer.style.display = 'block';
+                } catch (error) {
+                    console.error('Turnuva bilgisi yükleme hatası:', error);
+                    showInfoModal('Hata', 'Turnuva bilgileri alınamadı.', () => {
+                        window.location.href = '/turnuvalar';
+                    });
+                }
+            }
+            
+            // Turnuva bilgilerini ekranda göster
+            function displayTournamentDetails(tournament) {
+                // Temel bilgiler
+                tournamentName.textContent = tournament.name;
+                tournamentStatus.textContent = getStatusText(tournament.status);
+                tournamentStatus.className = `status-badge status-${tournament.status}`;
+                tournamentCreator.textContent = tournament.creator.username;
+                
+                // Tarih formatı
+                const startDate = new Date(tournament.startTime);
+                tournamentStart.textContent = startDate.toLocaleString('tr-TR');
+                
+                // Diğer bilgiler
+                tournamentTime.textContent = tournament.timeControl;
+                tournamentParticipants.textContent = tournament.participants.length;
+                tournamentMaxParticipants.textContent = tournament.maxParticipants;
+                tournamentRounds.textContent = tournament.rounds;
+                
+                // Açıklama
+                if (tournament.description) {
+                    tournamentDescription.innerHTML = `<p>${tournament.description}</p>`;
+                } else {
+                    tournamentDescription.innerHTML = `<p>Bu turnuva için açıklama bulunmuyor.</p>`;
+                }
+                
+                // Kullanıcı rolleri
+                isCreator = tournament.creator._id === userId;
+                isParticipant = tournament.participants.some(p => p._id === userId);
+                
+                // Butonları göster/gizle
+                updateActionButtons(tournament.status);
+                
+                // Katılımcıları göster
+                displayParticipants(tournament.participants);
+                
+                // Sıralama göster
+                if (tournament.standings && tournament.standings.length > 0) {
+                    displayStandings(tournament.standings);
+                }
+                
+                // Eşleşmeleri göster
+                if (tournament.games && tournament.games.length > 0) {
+                    displayMatches(tournament.games);
+                }
+            }
+            
+            // Durum metnini al
+            function getStatusText(status) {
+                switch (status) {
+                    case 'created': return 'Oluşturuldu';
+                    case 'registration': return 'Kayıt Açık';
+                    case 'inProgress': return 'Devam Ediyor';
+                    case 'completed': return 'Tamamlandı';
+                    case 'cancelled': return 'İptal Edildi';
+                    default: return status;
+                }
+            }
+            
+            // Aksiyon butonlarını güncelle
+            function updateActionButtons(status) {
+                // Tüm butonları gizle
+                joinBtn.style.display = 'none';
+                leaveBtn.style.display = 'none';
+                startBtn.style.display = 'none';
+                
+                if (status === 'registration') {
+                    if (isCreator) {
+                        // Oluşturucu: Başlat butonu
+                        startBtn.style.display = 'block';
+                    } else if (isParticipant) {
+                        // Katılımcı: Ayrıl butonu
+                        leaveBtn.style.display = 'block';
+                    } else {
+                        // Diğer: Katıl butonu
+                        joinBtn.style.display = 'block';
+                    }
+                } else if (status === 'inProgress' || status === 'completed') {
+                    // Herhangi bir buton gösterme
+                    tournamentActions.innerHTML = `<div class="status-message">${getStatusText(status)}</div>`;
+                }
+            }
+            
+            // Katılımcıları göster
+            function displayParticipants(participants) {
+                if (!participants || participants.length === 0) {
+                    participantsList.innerHTML = `<div class="no-data">Henüz katılımcı bulunmuyor.</div>`;
+                    return;
+                }
+                
+                // Katılımcı listesini oluştur
+                let html = '';
+                
+                participants.forEach((participant, index) => {
+                    const isCurrentUser = participant._id === userId;
+                    html += `
+                        <div class="participant-item ${isCurrentUser ? 'current-user' : ''}">
+                            <div class="participant-rank">${index + 1}</div>
+                            <div class="participant-name">${participant.username}</div>
+                            <div class="participant-elo">${participant.elo}</div>
+                        </div>
+                    `;
+                });
+                
+                participantsList.innerHTML = html;
+            }
+            
+            // Sıralamayı göster
+            function displayStandings(standings) {
+                if (!standings || standings.length === 0) {
+                    standingsList.innerHTML = `<tr><td colspan="7" class="no-data">Turnuva henüz başlamamış veya veri yok.</td></tr>`;
+                    return;
+                }
+                
+                // Sıralama tablosunu oluştur
+                let html = '';
+                
+                // Puanlara göre sırala
+                const sortedStandings = [...standings].sort((a, b) => b.points - a.points);
+                
+                sortedStandings.forEach((standing, index) => {
+                    const player = tournamentData.participants.find(p => p._id === standing.playerId);
+                    const isCurrentUser = standing.playerId === userId;
+                    
+                    if (!player) return;
+                    
+                    html += `
+                        <tr class="${isCurrentUser ? 'current-user' : ''}">
+                            <td>${index + 1}</td>
+                            <td>${player.username}</td>
+                            <td>${standing.points}</td>
+                            <td>${standing.gamesPlayed}</td>
+                            <td>${standing.wins}</td>
+                            <td>${standing.draws}</td>
+                            <td>${standing.losses}</td>
+                        </tr>
+                    `;
+                });
+                
+                standingsList.innerHTML = html;
+            }
+            
+            // Eşleşmeleri göster
+            function displayMatches(games) {
+                if (!games || games.length === 0) {
+                    matchesContainer.innerHTML = `<div class="no-data">Turnuva henüz başlamadı veya eşleşme bulunmuyor.</div>`;
+                    return;
+                }
+                
+                // Eşleşme listesini oluştur
+                let html = '';
+                
+                games.forEach(game => {
+                    const whitePlayer = game.whitePlayer ? game.whitePlayer.username : 'Bilinmiyor';
+                    const blackPlayer = game.blackPlayer ? game.blackPlayer.username : 'Bilinmiyor';
+                    
+                    // Sonuç metnini belirle
+                    let resultText = 'Başlamamış';
+                    let resultClass = '';
+                    
+                    if (game.result === 'white') {
+                        resultText = '1 - 0';
+                        resultClass = 'result-white-win';
+                    } else if (game.result === 'black') {
+                        resultText = '0 - 1';
+                        resultClass = 'result-black-win';
+                    } else if (game.result === 'draw') {
+                        resultText = '½ - ½';
+                        resultClass = 'result-draw';
+                    } else if (game.result === 'ongoing') {
+                        resultText = 'Devam Ediyor';
+                        resultClass = 'result-ongoing';
+                    }
+                    
+                    html += `
+                        <div class="match-item">
+                            <div class="match-players">
+                                <div class="match-player white">${whitePlayer}</div>
+                                <div class="match-result ${resultClass}">${resultText}</div>
+                                <div class="match-player black">${blackPlayer}</div>
+                            </div>
+                            <div class="match-meta">
+                                <span class="match-time">${tournamentData.timeControl} dk</span>
+                                <a href="/gecmis-oyunlar?id=${game._id}" class="match-view-btn" target="_blank">
+                                    <i class="fas fa-eye"></i> İzle
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                matchesContainer.innerHTML = html;
+            }
+            
+            // Turnuvaya katıl
+            async function joinTournament() {
+                try {
+                    const response = await fetch(`/api/turnuvalar/${tournamentId}/katil`, {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        showInfoModal('Hata', data.error || 'Turnuvaya katılırken bir hata oluştu.');
+                        return;
+                    }
+                    
+                    showInfoModal('Başarılı', 'Turnuvaya başarıyla katıldınız!', () => {
+                        // Sayfayı yenile
+                        window.location.reload();
+                    });
+                } catch (error) {
+                    console.error('Turnuvaya katılma hatası:', error);
+                    showInfoModal('Hata', 'Turnuvaya katılırken bir hata oluştu.');
+                }
+            }
+            
+            // Turnuvadan ayrıl
+            async function leaveTournament() {
+                try {
+                    const response = await fetch(`/api/turnuvalar/${tournamentId}/ayril`, {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        showInfoModal('Hata', data.error || 'Turnuvadan ayrılırken bir hata oluştu.');
+                        return;
+                    }
+                    
+                    showInfoModal('Başarılı', 'Turnuvadan başarıyla ayrıldınız.', () => {
+                        // Sayfayı yenile
+                        window.location.reload();
+                    });
+                } catch (error) {
+                    console.error('Turnuvadan ayrılma hatası:', error);
+                    showInfoModal('Hata', 'Turnuvadan ayrılırken bir hata oluştu.');
+                }
+            }
+            
+            // Turnuvayı başlat
+            async function startTournament() {
+                try {
+                    const response = await fetch(`/api/turnuvalar/${tournamentId}/baslat`, {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        showInfoModal('Hata', data.error || 'Turnuva başlatılırken bir hata oluştu.');
+                        return;
+                    }
+                    
+                    showInfoModal('Başarılı', 'Turnuva başarıyla başlatıldı!', () => {
+                        // Sayfayı yenile
+                        window.location.reload();
+                    });
+                } catch (error) {
+                    console.error('Turnuva başlatma hatası:', error);
+                    showInfoModal('Hata', 'Turnuva başlatılırken bir hata oluştu.');
+                }
+            }
+            
+            // Çıkış yap
+            async function logout() {
+                try {
+                    const response = await fetch('/api/cikis');
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.href = data.redirect || '/giris';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Çıkış hatası:', error);
+                }
+            }
+            
+            // Bilgi modalını göster
+            function showInfoModal(title, message, callback = null) {
+                infoTitle.textContent = title;
+                infoMessage.textContent = message;
+                infoModal.style.display = 'flex';
+                
+                // Callback'i sakla
+                infoOkBtn.onclick = () => {
+                    infoModal.style.display = 'none';
+                    if (callback) callback();
+                };
+            }
+            
+            // Event Listeners
+            // Sekme butonları
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Tüm sekme butonlarından active sınıfını kaldır
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    
+                    // Tüm sekme içeriklerinden active sınıfını kaldır
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // Tıklanan sekme butonuna active sınıfını ekle
+                    button.classList.add('active');
+                    
+                    // İlgili sekme içeriğini göster
+                    const tabId = button.getAttribute('data-tab') + '-tab';
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            // Turnuva aksiyon butonları
+            joinBtn.addEventListener('click', joinTournament);
+            leaveBtn.addEventListener('click', leaveTournament);
+            startBtn.addEventListener('click', startTournament);
+            
+            // Modal kapatma butonları
+            closeModalBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // En yakın modalı bul ve kapat
+                    const modal = btn.closest('.modal');
+                    if (modal) modal.style.display = 'none';
+                });
+            });
+            
+            // Modal dışına tıklandığında modalı kapat
+            window.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal')) {
+                    e.target.style.display = 'none';
+                }
+            });
+            
+            // Çıkış butonu
+            logoutBtn.addEventListener('click', logout);
+            
+            // Sayfa yüklendiğinde kullanıcı bilgilerini yükle
+            loadUserInfo();
+        });
+    </script>
+</body>
+</html>
