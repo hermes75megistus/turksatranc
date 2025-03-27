@@ -4,14 +4,17 @@ module.exports = function(gameModule) {
   const waitingPlayers = [];
   const activeGames = new Map();
   const userSockets = new Map(); // Kullanıcı ID - Socket ID eşleşmesi
+  const inviteGames = new Map(); // Davet ID - Oyun bilgisi eşleşmesi
 
   // Değişkenleri bağlamdan al
-  let User, Game, createGuestUser;
+  let User, Game, Tournament, createGuestUser, createFriendInvite;
 
   if (gameModule) {
     User = gameModule.User;
     Game = gameModule.Game;
+    Tournament = gameModule.Tournament;
     createGuestUser = gameModule.createGuestUser;
+    createFriendInvite = gameModule.createFriendInvite;
   }
 
   // İstatistikleri döndüren fonksiyon
@@ -31,7 +34,9 @@ module.exports = function(gameModule) {
         const server = require('./server');
         User = server.User;
         Game = server.Game;
+        Tournament = server.Tournament;
         createGuestUser = server.createGuestUser;
+        createFriendInvite = server.createFriendInvite;
       } catch (error) {
         console.error('Model importları yüklenemedi:', error);
         // Modüller yoksa, fonksiyona devam etmeyin
@@ -61,7 +66,7 @@ module.exports = function(gameModule) {
               socket.username = user.username;
               socket.isGuest = user.isGuest || false;
               
-              console.log(`Kullanıcı doğrulandı: ${user.username} (${user._id})`);
+              console.log(`Kullanıcı doğrulandı: ${user.username} (${user._id}), isGuest: ${socket.isGuest}`);
               
               // Socket ID ile kullanıcı eşleştir
               userSockets.set(user._id.toString(), socket.id);
@@ -73,15 +78,20 @@ module.exports = function(gameModule) {
         }
         
         // Session ID varsa session store'dan kullanıcı kimliğini almayı dene
-        // NOT: Bu kısım sizin session store implementasyonunuza göre değişebilir
         if (sessionId && cookies) {
           try {
-            // Burada session verilerini kontrol etme işlemi yapılmalı
-            // Gerçek uygulamada session store'dan userId çekilmeli
+            // Bu örnekte basit bir session parser kullanıyoruz
+            // Gerçek uygulamada daha karmaşık bir session parse etme işlemi gerekebilir
             console.log('Socket bağlantısı - sessionId ile doğrulama denenecek');
             
-            // Bu örnekte, session store'u kontrol etme işlemi yapılmamaktadır
-            // Gerçek uygulamada burada session veritabanı sorgusu olmalıdır
+            // sessionId'den userId'yi çıkarmak için cookie parser gerekli
+            // Bu sadece basit bir örnektir, gerçek uygulamada session store kullanılmalı
+            const cookieParser = require('cookie-parser');
+            const parseSignedCookie = cookieParser.signedCookie;
+            const parseCookie = cookieParser.JSONCookie;
+            
+            // Burada session store'dan userId çekilmeli
+            // Bu örnekte yapılmamıştır
           } catch (sessionError) {
             console.error('Session doğrulama hatası:', sessionError);
           }
@@ -105,7 +115,7 @@ module.exports = function(gameModule) {
     });
 
     io.on('connection', async (socket) => {
-      console.log(`Yeni socket bağlantısı: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}, UserId: ${socket.userId || 'Yok'}`);
+      console.log(`Yeni socket bağlantısı: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}, UserId: ${socket.userId || 'Yok'}, isGuest: ${socket.isGuest}`);
       
       // Tüm socket hatalarını yakalama
       socket.on('error', (error) => {
@@ -117,7 +127,6 @@ module.exports = function(gameModule) {
         try {
           console.log(`Kimlik doğrulama isteği userId: ${userId}, socket.userId: ${socket.userId}`);
           
-
           // Kullanıcı zaten doğrulandıysa ve aynı kimlikse işleme gerek yok
           if (socket.userId && socket.userId.toString() === userId) {
             console.log('Kullanıcı zaten doğrulanmış, işlem atlanıyor.');
@@ -158,7 +167,7 @@ module.exports = function(gameModule) {
     
       // Oyuncu eşleşme için arama
       socket.on('find_match', async (timeControl) => {
-        console.log(`Eşleşme isteği - Socket: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}`);
+        console.log(`Eşleşme isteği - Socket: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}, isGuest: ${socket.isGuest}`);
         
         if (!socket.userId) {
           console.log('Eşleşme hatası: Kullanıcı kimliği yok');
@@ -178,7 +187,7 @@ module.exports = function(gameModule) {
           
           // Geçerli bir sayı olduğundan emin ol
           timeControl = parseInt(timeControl) || 15;
-          console.log(`Eşleşme parametreleri - Kullanıcı: ${user.username}, Süre: ${timeControl}dk, ELO: ${user.elo}`);
+          console.log(`Eşleşme parametreleri - Kullanıcı: ${user.username}, Süre: ${timeControl}dk, ELO: ${user.elo}, isGuest: ${user.isGuest}`);
           
           // Önce mevcut bekleme listesinden bu kullanıcıyı kaldır
           const existingIndex = waitingPlayers.findIndex(p => p.id.toString() === socket.userId.toString());
@@ -236,8 +245,8 @@ module.exports = function(gameModule) {
               id: gameId,
               dbId: newGame._id,
               players: [
-                { id: whitePlayerId, color: 'white', username: whitePlayer.username },
-                { id: blackPlayerId, color: 'black', username: blackPlayer.username }
+                { id: whitePlayerId, color: 'white', username: whitePlayer.username, isGuest: whitePlayer.isGuest },
+                { id: blackPlayerId, color: 'black', username: blackPlayer.username, isGuest: blackPlayer.isGuest }
               ],
               fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
               pgn: '',
@@ -249,7 +258,9 @@ module.exports = function(gameModule) {
               },
               lastMoveTime: Date.now(),
               currentTurn: 'white',
-              messages: []
+              messages: [],
+              isFriendGame: false,
+              tournamentId: null
             });
             
             // Her iki oyuncuya da eşleşme bilgisini gönder
@@ -286,7 +297,8 @@ module.exports = function(gameModule) {
               joinedAt: Date.now(),
               timeControl: timeControl,
               elo: user.elo,
-              username: user.username
+              username: user.username,
+              isGuest: user.isGuest
             });
             socket.emit('waiting');
             console.log(`Oyuncu bekleme listesine eklendi: ${user.username} - Süre: ${timeControl}dk - Bekleyen oyuncu sayısı: ${waitingPlayers.length}`);
@@ -295,6 +307,148 @@ module.exports = function(gameModule) {
         } catch (error) {
           console.error('Eşleşme oluşturma hatası:', error);
           socket.emit('error', { message: 'Eşleşme bulunurken bir hata oluştu' });
+        }
+      });
+
+      // Arkadaş daveti ile oyun kurma
+      socket.on('join_friend_game', async ({ inviteId }) => {
+        console.log(`Arkadaş daveti ile oyun isteği - Socket: ${socket.id}, Davet: ${inviteId}`);
+        
+        if (!socket.userId) {
+          socket.emit('error', { message: 'Kullanıcı kimliği bulunamadı' });
+          return;
+        }
+        
+        try {
+          // Kullanıcı bilgisini doğrula
+          const joiningUser = await User.findById(socket.userId);
+          
+          if (!joiningUser) {
+            console.log('Oyun kurma hatası: Kullanıcı bulunamadı:', socket.userId);
+            socket.emit('error', { message: 'Kullanıcı bulunamadı, lütfen sayfayı yenileyin' });
+            return;
+          }
+          
+          // Daveti doğrula
+          const creatorUser = await User.findOne({
+            'friendInvites.inviteId': inviteId,
+            'friendInvites.expires': { $gte: new Date() } // Süresi dolmamış davetler
+          });
+          
+          if (!creatorUser) {
+            console.log('Oyun kurma hatası: Davet bulunamadı veya süresi dolmuş:', inviteId);
+            socket.emit('error', { message: 'Davet bulunamadı veya süresi dolmuş' });
+            return;
+          }
+          
+          // Kendisi ile oyun kurmasını engelle
+          if (creatorUser._id.toString() === socket.userId.toString()) {
+            console.log('Oyun kurma hatası: Kullanıcı kendi daveti ile oyun kuramaz');
+            socket.emit('error', { message: 'Kendi davetinizle oyun kuramazsınız' });
+            return;
+          }
+          
+          // İlgili daveti bul
+          const invite = creatorUser.friendInvites.find(inv => inv.inviteId === inviteId);
+          
+if (!invite) {
+            console.log('Oyun kurma hatası: Davet detayları bulunamadı:', inviteId);
+            socket.emit('error', { message: 'Davet detayları bulunamadı' });
+            return;
+          }
+          
+          // Davet ID'si ile bir oyun zaten kurulmuş mu?
+          if (inviteGames.has(inviteId)) {
+            console.log('Oyun kurma hatası: Bu davete ait aktif bir oyun zaten var:', inviteId);
+            socket.emit('error', { message: 'Bu davete ait aktif bir oyun zaten var' });
+            return;
+          }
+          
+          // Süre kontrolünü al
+          const timeControl = invite.timeControl || 15;
+          
+          // Oyun ID'si oluştur
+          const gameId = Math.random().toString(36).substring(2, 15);
+          
+          // Oyun kurucusu her zaman beyaz olsun
+          const whitePlayerId = creatorUser._id;
+          const blackPlayerId = socket.userId;
+          
+          // Oyun oluştur
+          const timeInMilliseconds = timeControl * 60 * 1000;
+          
+          // Yeni oyun belgesi oluştur
+          const newGame = new Game({
+            whitePlayer: whitePlayerId,
+            blackPlayer: blackPlayerId,
+            timeControl: timeControl,
+            startTime: new Date(),
+            inviteId: inviteId,
+            isFriendGame: true
+          });
+          
+          await newGame.save();
+          console.log('Yeni arkadaş oyunu veritabanına kaydedildi:', newGame._id);
+          
+          // Aktif oyun bilgisi
+          activeGames.set(gameId, {
+            id: gameId,
+            dbId: newGame._id,
+            players: [
+              { id: whitePlayerId, color: 'white', username: creatorUser.username, isGuest: creatorUser.isGuest },
+              { id: blackPlayerId, color: 'black', username: joiningUser.username, isGuest: joiningUser.isGuest }
+            ],
+            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            pgn: '',
+            moves: [],
+            timeControl: timeControl,
+            clocks: {
+              [whitePlayerId.toString()]: timeInMilliseconds,
+              [blackPlayerId.toString()]: timeInMilliseconds
+            },
+            lastMoveTime: Date.now(),
+            currentTurn: 'white',
+            messages: [],
+            isFriendGame: true,
+            inviteId: inviteId
+          });
+          
+          // Davet ID'si ile oyun eşleştir
+          inviteGames.set(inviteId, gameId);
+          
+          // Her iki oyuncuya da eşleşme bilgisini gönder
+          const whiteSocketId = userSockets.get(whitePlayerId.toString());
+          const blackSocketId = userSockets.get(blackPlayerId.toString());
+          
+          console.log('Arkadaş oyunu bilgisi gönderiliyor:');
+          console.log(`Beyaz (${creatorUser.username}) -> Socket: ${whiteSocketId}`);
+          console.log(`Siyah (${joiningUser.username}) -> Socket: ${blackSocketId}`);
+          
+          if (whiteSocketId) {
+            io.to(whiteSocketId).emit('match_found', { 
+              gameId, 
+              color: 'white',
+              timeControl: timeControl,
+              opponent: joiningUser.username,
+              isFriendGame: true
+            });
+          }
+          
+          if (blackSocketId) {
+            io.to(blackSocketId).emit('match_found', { 
+              gameId, 
+              color: 'black',
+              timeControl: timeControl,
+              opponent: creatorUser.username,
+              isFriendGame: true
+            });
+          }
+          
+          console.log(`Arkadaş oyunu oluşturuldu: ${gameId}, oyuncular: ${creatorUser.username} ve ${joiningUser.username}, süre: ${timeControl} dakika`);
+          
+        } catch (error) {
+          console.error('Arkadaş oyunu kurma hatası:', error);
+          socket.emit('error', { message: 'Arkadaş oyunu kurulurken bir hata oluştu' });
         }
       });
 
@@ -469,9 +623,12 @@ module.exports = function(gameModule) {
                 actualBlack = 0.5;
               }
               
+              // Arkadaş oyunları için daha düşük k faktörü kullan
+              const adjustedKFactor = game.isFriendGame ? kFactor / 2 : kFactor;
+              
               // Yeni ELO puanları
-              newWhiteElo = Math.round(whitePlayer.elo + kFactor * (actualWhite - expectedWhite));
-              newBlackElo = Math.round(blackPlayer.elo + kFactor * (actualBlack - expectedBlack));
+              newWhiteElo = Math.round(whitePlayer.elo + adjustedKFactor * (actualWhite - expectedWhite));
+              newBlackElo = Math.round(blackPlayer.elo + adjustedKFactor * (actualBlack - expectedBlack));
               
               // Beyaz oyuncuyu güncelle - misafir olmayan oyuncular için
               if (!whitePlayer.isGuest) {
@@ -491,6 +648,15 @@ module.exports = function(gameModule) {
                 else blackUpdate.$inc.draws = 1;
                 
                 await User.findByIdAndUpdate(blackPlayer._id, blackUpdate);
+              }
+              
+              // Eğer turnuva oyunu ise turnuva sonuçlarını güncelle
+              if (game.tournamentId) {
+                await updateTournamentResults(game.tournamentId, {
+                  whiteId: whitePlayer._id,
+                  blackId: blackPlayer._id,
+                  result: gameResult
+                });
               }
             }
           } catch (updateError) {
@@ -513,12 +679,18 @@ module.exports = function(gameModule) {
               io.to(playerSocketId).emit('game_ended', { 
                 result: gameResult,
                 playerColor: p.color,
-                eloChange: eloChange
+                eloChange: eloChange,
+                isFriendGame: game.isFriendGame
               });
             }
           });
           
           console.log(`Oyun bitti (${gameId}): ${gameResult}`);
+          
+          // Eğer bu bir arkadaş oyunu ise davet eşleşmesini kaldır
+          if (game.inviteId) {
+            inviteGames.delete(game.inviteId);
+          }
           
           // Aktif oyunlar listesinden kaldır
           activeGames.delete(gameId);
@@ -527,6 +699,73 @@ module.exports = function(gameModule) {
           socket.emit('error', { message: 'Oyun sonlandırılırken bir hata oluştu' });
         }
       });
+      
+      // Turnuva sonuçlarını güncelleme fonksiyonu
+      async function updateTournamentResults(tournamentId, gameInfo) {
+        try {
+          const tournament = await Tournament.findById(tournamentId);
+          if (!tournament) return;
+          
+          // Beyaz oyuncu puanları
+          const whiteStanding = tournament.standings.find(s => 
+            s.playerId.toString() === gameInfo.whiteId.toString()
+          );
+          
+          // Siyah oyuncu puanları
+          const blackStanding = tournament.standings.find(s => 
+            s.playerId.toString() === gameInfo.blackId.toString()
+          );
+          
+          if (!whiteStanding || !blackStanding) return;
+          
+          // Oyun sonucuna göre güncelleme
+          if (gameInfo.result === 'white') {
+            // Beyaz kazandı
+            whiteStanding.points += 1;
+            whiteStanding.wins += 1;
+            blackStanding.losses += 1;
+          } else if (gameInfo.result === 'black') {
+            // Siyah kazandı
+            blackStanding.points += 1;
+            blackStanding.wins += 1;
+            whiteStanding.losses += 1;
+          } else {
+            // Berabere
+            whiteStanding.points += 0.5;
+            blackStanding.points += 0.5;
+            whiteStanding.draws += 1;
+            blackStanding.draws += 1;
+          }
+          
+          // Oyun sayılarını güncelle
+          whiteStanding.gamesPlayed += 1;
+          blackStanding.gamesPlayed += 1;
+          
+          // Turnuvayı güncelle
+          await Tournament.findByIdAndUpdate(tournamentId, {
+            $set: { standings: tournament.standings }
+          });
+          
+          // Eğer tüm oyunlar tamamlandıysa turnuvayı bitir
+          const completedGames = await Game.countDocuments({
+            tournamentId: tournamentId,
+            result: { $ne: 'ongoing' }
+          });
+          
+          // Beklenen oyun sayısı - turnuva formatına göre değişebilir
+          const expectedGameCount = Math.floor(tournament.participants.length / 2) * tournament.rounds;
+          
+          if (completedGames >= expectedGameCount) {
+            await Tournament.findByIdAndUpdate(tournamentId, {
+              status: 'completed',
+              endTime: new Date()
+            });
+          }
+          
+        } catch (error) {
+          console.error('Turnuva sonuçları güncelleme hatası:', error);
+        }
+      }
       
       // Süre aşımı
       socket.on('time_out', async ({ gameId }) => {
@@ -662,6 +901,11 @@ module.exports = function(gameModule) {
                 }).catch(err => console.error('Oyun güncelleme hatası:', err));
                 
                 console.log(`Oyun sonucu güncellendi: ${gameId}, Kazanan: ${winnerColor}`);
+              }
+              
+              // Davet oyunu ise davet eşleşmesini kaldır
+              if (game.inviteId) {
+                inviteGames.delete(game.inviteId);
               }
               
               activeGames.delete(gameId);
