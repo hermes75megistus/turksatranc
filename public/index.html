@@ -23,10 +23,11 @@
                 </div>
                 <nav class="main-nav">
                     <ul>
-                        <li><a href="/" class="active"><i class="fas fa-chess-board"></i> Oyna</a></li>
+                    <li><a href="/" class="active"><i class="fas fa-chess-board"></i> Oyna</a></li>
                         <li><a href="/siralama"><i class="fas fa-trophy"></i> Sıralama</a></li>
                         <li><a href="/gecmis-oyunlar"><i class="fas fa-history"></i> Geçmiş Oyunlar</a></li>
                         <li><a href="/profil"><i class="fas fa-user"></i> Profil</a></li>
+                        <li><a href="/turnuvalar"><i class="fas fa-medal"></i> Turnuvalar</a></li>
                     </ul>
                 </nav>
                 <div class="user-controls">
@@ -45,13 +46,13 @@
         
         <main class="container">
             <div class="page-title">
-                
+                <h1><i class="fas fa-chess"></i> TürkSatranç</h1>
                 <div id="status" class="status-message">Oynamak için süre seçin ve eşleşme bulun</div>
             </div>
             
             <div id="setup-container" class="setup-container">
                 <div class="panel turkish-pattern">
-                    <h2>Süre Seçimi</h2>
+                    <h2>Oyun Seçenekleri</h2>
                     <div class="time-grid">
                         <button class="time-option" data-time="1">1 dk</button>
                         <button class="time-option" data-time="3">3 dk</button>
@@ -60,7 +61,10 @@
                         <button class="time-option selected" data-time="15">15 dk</button>
                         <button class="time-option" data-time="30">30 dk</button>
                     </div>
-                    <button id="start-btn" class="btn primary-btn"><i class="fas fa-play"></i> Hızlı Eşleşme</button>
+                    <div class="game-modes">
+                        <button id="start-btn" class="btn primary-btn"><i class="fas fa-play"></i> Hızlı Eşleşme</button>
+                        <button id="friend-btn" class="btn secondary-btn"><i class="fas fa-user-friends"></i> Arkadaşla Oyna</button>
+                    </div>
                     <p class="guest-login-info" style="margin-top: 15px; font-size: 0.9rem; text-align: center;">
                         <i class="fas fa-info-circle"></i> Hesabınız yoksa misafir olarak oynayabilirsiniz.
                     </p>
@@ -142,6 +146,27 @@
                 <span id="elo-change-value">0</span> ELO puanı
             </div>
             <button id="result-new-game" class="btn primary-btn"><i class="fas fa-play"></i> Yeni Oyun</button>
+        </div>
+    </div>
+    
+    <!-- Friend invite modal -->
+    <div id="friend-modal" class="modal">
+        <div class="modal-content turkish-pattern-light">
+            <span id="close-friend-modal" class="close-modal">&times;</span>
+            <h2>Arkadaş Daveti</h2>
+            <p>Aşağıdaki bağlantıyı arkadaşınızla paylaşın:</p>
+            <div class="link-container">
+                <input type="text" id="friend-invite-link" readonly>
+                <button id="copy-friend-link" class="btn"><i class="fas fa-copy"></i></button>
+            </div>
+            <div class="info-text">
+                <p><i class="fas fa-info-circle"></i> Bu bağlantı 24 saat geçerlidir.</p>
+            </div>
+            <div class="share-buttons">
+                <button class="btn primary-btn" onclick="window.open('https://wa.me/?text=' + encodeURIComponent(document.getElementById('friend-invite-link').value))">
+                    <i class="fab fa-whatsapp"></i> WhatsApp ile Paylaş
+                </button>
+            </div>
         </div>
     </div>
 
