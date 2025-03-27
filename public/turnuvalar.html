@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turnuvalar - Türk Satranç</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/turnuvalar.css">
+    <link rel="shortcut icon" href="img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="site-wrapper">
+        <header class="main-header">
+            <div class="container">
+                <div class="logo">
+                    <a href="/">
+                        <img src="img/logo.png" alt="Türk Satranç Logo">
+                        <span>TürkSatranç</span>
+                    </a>
+                </div>
+                <nav class="main-nav">
+                    <ul>
+                        <li><a href="/"><i class="fas fa-chess-board"></i> Oyna</a></li>
+                        <li><a href="/siralama"><i class="fas fa-trophy"></i> Sıralama</a></li>
+                        <li><a href="/gecmis-oyunlar"><i class="fas fa-history"></i> Geçmiş Oyunlar</a></li>
+                        <li><a href="/profil"><i class="fas fa-user"></i> Profil</a></li>
+                        <li><a href="/turnuvalar" class="active"><i class="fas fa-medal"></i> Turnuvalar</a></li>
+                    </ul>
+                </nav>
+                <div class="user-controls">
+                    <div class="user-info">
+                        <span id="username-display">Kullanıcı</span>
+                        <span id="elo-display">1200</span>
+                    </div>
+                    <button id="logout-btn" class="btn secondary-btn small-btn"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
+                </div>
+            </div>
+        </header>
+        
+        <main class="container">
+            <div class="page-title">
+                <h1><i class="fas fa-medal"></i> Turnuvalar</h1>
+                <button id="create-tournament-btn" class="btn primary-btn"><i class="fas fa-plus"></i> Yeni Turnuva Oluştur</button>
+            </div>
+            
+            <div class="tournaments-filter turkish-pattern-light">
+                <div class="filter-controls">
+                    <select id="status-filter">
+                        <option value="all">Tüm Turnuvalar</option>
+                        <option value="registration">Kayıt Açık</option>
+                        <option value="inProgress">Devam Ediyor</option>
+                        <option value="completed">Tamamlandı</option>
+                    </select>
+                    <div class="toggle-group">
+                        <label for="my-tournaments">
+                            <input type="checkbox" id="my-tournaments">
+                            Katıldığım Turnuvalar
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="tournaments-container" class="tournaments-container">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Turnuvalar yükleniyor...</p>
+                </div>
+                
+                <!-- Turnuvalar JavaScript ile doldurulacak -->
+            </div>
+            
+            <div class="tournament-info turkish-pattern-light">
+                <h3>Turnuva Sistemi Hakkında</h3>
+                <p>
+                    TürkSatranç turnuva sistemi, kayıtlı kullanıcıların katılabileceği çevrimiçi satranç turnuvaları 
+                    düzenlemenizi sağlar. Turnuvalar, İsviçre Sistemi kurallarına göre gerçekleştirilir.
+                </p>
+                <p>
+                    <strong>Turnuva Türleri:</strong> 
+                    <ul>
+                        <li><strong>Kayıt Açık:</strong> Henüz başlamamış, kayıt kabul eden turnuvalar.</li>
+                        <li><strong>Devam Ediyor:</strong> Başlamış ve halen devam eden turnuvalar.</li>
+                        <li><strong>Tamamlanmış:</strong> Sona ermiş turnuvalar.</li>
+                    </ul>
+                </p>
+                <p>
+                    Turnuvalara katılmak veya oluşturmak için kayıtlı bir kullanıcı olmanız gerekmektedir.
+                    Turnuva oluşturan kişi, turnuva başlamadan önce kayıtlı kullanıcıları davet edebilir ve 
+                    turnuva başladıktan sonra eşleşmeleri takip edebilir.
+                </p>
+            </div>
+        </main>
+        
+        <footer class="main-footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="copyright">
+                        <p>&copy; 2025 TürkSatranç - Tüm hakları saklıdır.</p>
+                    </div>
+                    <div class="social-links">
+                        <a href="#" class="social-icon"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Turnuva Oluşturma Modal -->
+    <div id="create-tournament-modal" class="modal">
+        <div class="modal-content turkish-pattern-light">
+            <span class="close-modal">&times;</span>
+            <h2>Yeni Turnuva Oluştur</h2>
+            <form id="tournament-form">
+                <div class="form-group">
+                    <label for="tournament-name">Turnuva Adı</label>
+                    <input type="text" id="tournament-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="tournament-desc">Açıklama</label>
+                    <textarea id="tournament-desc" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="tournament-start">Başlangıç Tarihi ve Saati</label>
+                    <input type="datetime-local" id="tournament-start" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="max-participants">Maksimum Katılımcı</label>
+                        <select id="max-participants">
+                            <option value="8">8 Oyuncu</option>
+                            <option value="16" selected>16 Oyuncu</option>
+                            <option value="32">32 Oyuncu</option>
+                            <option value="64">64 Oyuncu</option>
+                        </select>
+                    </div>
+                    <div class="form-group half">
+                        <label for="rounds">Tur Sayısı</label>
+                        <select id="rounds">
+                            <option value="3">3 Tur</option>
+                            <option value="4" selected>4 Tur</option>
+                            <option value="5">5 Tur</option>
+                            <option value="6">6 Tur</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="time-control">Süre Kontrolü (Dakika)</label>
+                    <select id="time-control">
+                        <option value="5">5 Dakika</option>
+                        <option value="10">10 Dakika</option>
+                        <option value="15" selected>15 Dakika</option>
+                        <option value="30">30 Dakika</option>
+                    </select>
+                </div>
+                <div id="tournament-error" class="error-message" style="display: none;"></div>
+                <div class="form-actions">
+                    <button type="submit" class="btn primary-btn">Turnuva Oluştur</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="js/turnuvalar.js"></script>
+</body>
+</html>
