@@ -381,6 +381,9 @@ img {
 .board-section {
     flex: 3;
     padding-right: 20px;
+    width: 800px; /* Eklenen satır */
+    max-width: 650px; /* Eklenen satır */
+    margin: 0 auto; /* Eklenen satır */
 
 }
 
