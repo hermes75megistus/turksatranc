@@ -343,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Tahtayı oluştur
         board = Chessboard('game-board', {
             position: 'start',
-            pieceTheme: '/img/chesspieces/wikipedia/{piece}.png' // Düzeltilen yol
+            pieceTheme: '/img/chesspieces/wikipedia/{piece}.svg' // Düzeltilen yol
         });
         
         // Hamleleri ayarla
