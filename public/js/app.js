@@ -1,29 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Socket.io bağlantısı - sessionId ile kimlik doğrulama
-    const socket = io({
-        auth: {
-            sessionId: getSessionIdFromCookie(),
-            userId: getUserIdFromPage() // Kullanıcı ID'sini de ekledik
-        }
-    });
-    
-    // Çerezden sessionId alma fonksiyonu
-    function getSessionIdFromCookie() {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.startsWith('connect.sid=')) {
-                return cookie.substring('connect.sid='.length);
-            }
-        }
-        return '';
-    }
-    
-    // Kullanıcı ID'sini sayfadan alma fonksiyonu
-    function getUserIdFromPage() {
-        const userElement = document.getElementById('username-display');
-        return userElement ? userElement.getAttribute('data-id') : null;
-    }
+    // Socket bağlantısı ve kullanıcı bilgileri
+    let socket = null;
+    let isGuest = false;
     
     // Oyun durumu değişkenleri
     let board = null;
@@ -38,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let clockInterval = null;
     let opponentName = '';
-    let isGuest = false;
     
     // DOM elemanları
     const statusDiv = document.getElementById('status');
@@ -70,8 +47,110 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutBtn = document.getElementById('logout-btn');
     const authButtons = document.getElementById('auth-buttons');
     
-    // Kullanıcı bilgilerini yükle
-    loadUserInfo();
+    // Socket bağlantısını başlatma fonksiyonu
+    const initializeSocket = function(userId) {
+        console.log("Socket bağlantısı başlatılıyor, userId:", userId || "Yok");
+        
+        // userId ile socket.io bağlantısını başlat
+        const socket = io({
+            auth: {
+               sessionId: getSessionIdFromCookie(),
+                userId: userId
+            }
+        });
+        
+        // Socket event listener'larını ayarla
+        setupSocketListeners(socket);
+        
+        return socket;
+    };
+    
+    // Çerezden sessionId alma fonksiyonu
+    function getSessionIdFromCookie() {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.startsWith('connect.sid=')) {
+                return cookie.substring('connect.sid='.length);
+            }
+        }
+        return '';
+    }
+    
+    // Kullanıcı ID'sini sayfadan alma fonksiyonu
+    function getUserIdFromPage() {
+        const userElement = document.getElementById('username-display');
+        return userElement ? userElement.getAttribute('data-id') : null;
+    }
+    
+    // Socket olay dinleyicilerini ayarla
+    function setupSocketListeners(socket) {
+        socket.on('connect_error', (error) => {
+            console.error('Bağlantı hatası:', error);
+            
+            // Bağlantı hatası sayfayı etkilemesin - kullanıcı hala misafir olarak oynayabilir
+            if (error.message === 'authentication_error') {
+                console.log('Kimlik doğrulama hatası, misafir olarak devam ediliyor...');
+            }
+        });
+        
+        socket.on('match_found', matchFound);
+        
+        socket.on('waiting', () => {
+            statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
+        });
+        
+        socket.on('opponent_move', opponentMove);
+        
+        socket.on('game_ended', (data) => {
+            let resultMessage = '';
+            
+            // Sonuç ve oyuncu rengine göre mesajı belirle
+            if (data.result === 'white') {
+                resultMessage = data.playerColor === 'white' ? 'Kazandınız!' : 'Kaybettiniz!';
+            } else if (data.result === 'black') {
+                resultMessage = data.playerColor === 'black' ? 'Kazandınız!' : 'Kaybettiniz!';
+            } else if (data.result === 'draw') {
+                resultMessage = 'Oyun berabere bitti!';
+            }
+            
+            // ELO değişimini göster
+            const eloChange = data.eloChange;
+            if (eloChange !== undefined) {
+                eloChangeValue.textContent = eloChange > 0 ? `+${eloChange}` : eloChange;
+                eloChangeValue.style.color = eloChange > 0 ? '#27ae60' : '#e74c3c';
+                
+                // Misafir kullanıcı ise veya ELO değişimi 0 ise ELO değişimi alanını gizle
+                const eloChangeContainer = document.getElementById('elo-change');
+                if (isGuest || eloChange === 0) {
+                    eloChangeContainer.style.display = 'none';
+                } else {
+                    eloChangeContainer.style.display = 'block';
+                }
+            }
+            
+            gameOver(resultMessage, data.result);
+        });
+        
+        socket.on('opponent_disconnected', () => {
+            gameOver('Rakip bağlantıyı kesti. Kazandınız!', 'disconnect');
+        });
+        
+        socket.on('chat_message', (message) => {
+            displayChatMessage(message);
+        });
+        
+        socket.on('error', (data) => {
+            console.error(`Sunucu hatası: ${data.message}`);
+            
+            if (data.redirect === '/giris') {
+                // Özel bir işlem yapmayalım, misafir olarak oynamaya devam edebilir
+                console.log('Oturum hatası, misafir olarak devam ediliyor...');
+            } else {
+                alert(`Hata: ${data.message}`);
+            }
+        });
+    }
     
     // Event listener'ları başlat
     function initializeEventListeners() {
@@ -149,6 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (authButtons) authButtons.style.display = 'block';
                 if (logoutBtn) logoutBtn.style.display = 'none';
                 
+                // Misafir kullanıcı için socket'i başlat
+                socket = initializeSocket(null);
                 return;
             }
             
@@ -185,10 +266,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (logoutBtn) logoutBtn.style.display = 'inline-block';
             }
             
-            // Socket'e kullanıcı kimliğini gönder (varsa)
-            if (userData._id) {
-                socket.emit('authenticate', userData._id);
-            }
+            // Socket'i kullanıcı kimliği ile başlat
+            socket = initializeSocket(userData._id);
             
         } catch (error) {
             console.error('Kullanıcı bilgisi yükleme hatası:', error);
@@ -202,6 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Giriş/kayıt butonlarını göster, çıkış butonunu gizle
             if (authButtons) authButtons.style.display = 'block';
             if (logoutBtn) logoutBtn.style.display = 'none';
+            
+            // Hata durumunda socket'i başlat
+            socket = initializeSocket(null);
         }
     }
     
@@ -426,14 +508,14 @@ document.addEventListener('DOMContentLoaded', () => {
         board.position(game.fen());
     }
     
-    // Eşleşme bul - Düzeltildi
+    // Eşleşme bul
     function findMatch() {
         console.log("Eşleşme aranıyor...");
         statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
         setupContainer.style.display = 'none';
         
         // Socket bağlantı kontrolü
-        if (!socket.connected) {
+        if (!socket || !socket.connected) {
             console.error('Sunucuya bağlanılamadı!');
             statusDiv.innerHTML = 'Sunucuya bağlanılamadı. Sayfayı yenileyin veya daha sonra tekrar deneyin.';
             setupContainer.style.display = 'flex';
@@ -592,69 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Socket bağlantı hatası
-    socket.on('connect_error', (error) => {
-        console.error('Bağlantı hatası:', error);
-        
-        // Bağlantı hatası sayfayı etkilemesin - kullanıcı hala misafir olarak oynayabilir
-        if (error.message === 'authentication_error') {
-            console.log('Kimlik doğrulama hatası, misafir olarak devam ediliyor...');
-            // Misafir kullanıcı olarak giriş yapma özelliği sunucu tarafında sağlanacak
-        }
-    });
-    
-    // Socket olay dinleyicileri
-    socket.on('match_found', matchFound);
-    socket.on('waiting', () => {
-        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rakip bekleniyor...';
-    });
-    socket.on('opponent_move', opponentMove);
-    socket.on('game_ended', (data) => {
-        let resultMessage = '';
-        
-        // Sonuç ve oyuncu rengine göre mesajı belirle
-        if (data.result === 'white') {
-            resultMessage = data.playerColor === 'white' ? 'Kazandınız!' : 'Kaybettiniz!';
-        } else if (data.result === 'black') {
-            resultMessage = data.playerColor === 'black' ? 'Kazandınız!' : 'Kaybettiniz!';
-        } else if (data.result === 'draw') {
-            resultMessage = 'Oyun berabere bitti!';
-        }
-        
-        // ELO değişimini göster
-        const eloChange = data.eloChange;
-        if (eloChange !== undefined) {
-            eloChangeValue.textContent = eloChange > 0 ? `+${eloChange}` : eloChange;
-            eloChangeValue.style.color = eloChange > 0 ? '#27ae60' : '#e74c3c';
-            
-            // Misafir kullanıcı ise veya ELO değişimi 0 ise ELO değişimi alanını gizle
-            const eloChangeContainer = document.getElementById('elo-change');
-            if (isGuest || eloChange === 0) {
-                eloChangeContainer.style.display = 'none';
-            } else {
-                eloChangeContainer.style.display = 'block';
-            }
-        }
-        
-        gameOver(resultMessage, data.result);
-    });
-    socket.on('opponent_disconnected', () => {
-        gameOver('Rakip bağlantıyı kesti. Kazandınız!', 'disconnect');
-    });
-    socket.on('chat_message', (message) => {
-        displayChatMessage(message);
-    });
-    socket.on('error', (data) => {
-        console.error(`Sunucu hatası: ${data.message}`);
-        
-        if (data.redirect === '/giris') {
-            // Özel bir işlem yapmayalım, misafir olarak oynamaya devam edebilir
-            console.log('Oturum hatası, misafir olarak devam ediliyor...');
-        } else {
-            alert(`Hata: ${data.message}`);
-        }
-    });
-    
     // Uygulamayı başlat
     initializeEventListeners();
+    loadUserInfo();
 });
