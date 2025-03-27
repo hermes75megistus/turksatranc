@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let clockInterval = null;
     let opponentName = '';
+    let isFriendGame = false;
     
     // DOM elemanları
     const statusDiv = document.getElementById('status');
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameContainer = document.getElementById('game-container');
     const timeOptions = document.querySelectorAll('.time-option');
     const startBtn = document.getElementById('start-btn');
+    const friendBtn = document.getElementById('friend-btn');
     const resignBtn = document.getElementById('resign-btn');
     const newGameBtn = document.getElementById('new-game-btn');
     const boardContainer = document.getElementById('board-container');
@@ -46,6 +48,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const eloDisplay = document.getElementById('elo-display');
     const logoutBtn = document.getElementById('logout-btn');
     const authButtons = document.getElementById('auth-buttons');
+    
+    // Arkadaş daveti modal elementleri
+    const friendModal = document.getElementById('friend-modal');
+    const friendInviteLink = document.getElementById('friend-invite-link');
+    const copyFriendLinkBtn = document.getElementById('copy-friend-link');
+    const closeFriendModal = document.getElementById('close-friend-modal');
     
     // Socket bağlantısını başlatma fonksiyonu
     const initializeSocket = function(userId) {
@@ -129,6 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
+            // Arkadaş oyunu ise farklı mesaj göster
+            if (data.isFriendGame) {
+                resultMessage += ' (Arkadaş Oyunu)';
+            }
+            
             gameOver(resultMessage, data.result);
         });
         
@@ -194,6 +207,22 @@ document.addEventListener('DOMContentLoaded', () => {
         newGameBtn.addEventListener('click', newGame);
         resultNewGame.addEventListener('click', newGame);
         
+        // Arkadaş daveti butonu
+        if (friendBtn) {
+            friendBtn.addEventListener('click', createFriendInvite);
+        }
+        
+        // Arkadaş daveti modal butonları
+        if (copyFriendLinkBtn) {
+            copyFriendLinkBtn.addEventListener('click', copyFriendInviteLink);
+        }
+        
+        if (closeFriendModal) {
+            closeFriendModal.addEventListener('click', () => {
+                friendModal.style.display = 'none';
+            });
+        }
+        
         // Modal kapat butonu
         closeModal.addEventListener('click', () => {
             resultModal.style.display = 'none';
@@ -204,10 +233,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === resultModal) {
                 resultModal.style.display = 'none';
             }
+            if (e.target === friendModal) {
+                friendModal.style.display = 'none';
+            }
         });
         
         // Çıkış butonu
         logoutBtn.addEventListener('click', logout);
+        
+        // URL'den davet ID kontrol et
+        checkInviteInUrl();
+    }
+    
+    // URL'den davet ID kontrol et
+    function checkInviteInUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteId = urlParams.get('invite');
+        
+        if (inviteId) {
+            joinFriendGame(inviteId);
+        }
     }
     
     // Kullanıcı bilgilerini yükle
@@ -216,29 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/kullanici', {
                 credentials: 'include' // Çerezleri gönderir
             });
-            
-            // Yanıt alınamadıysa (mesela 403/401), misafir kullanıcı olarak devam et
-            if (!response.ok) {
-                isGuest = true;
-                usernameDisplay.textContent = 'Misafir';
-                eloDisplay.textContent = '1200';
-                playerName.textContent = 'Siz';
-                
-                // Giriş/kayıt butonlarını göster, çıkış butonunu gizle
-                if (authButtons) authButtons.style.display = 'block';
-                if (logoutBtn) logoutBtn.style.display = 'none';
-                
-                // Misafir kullanıcı için socket'i başlat
-                socket = initializeSocket(null);
-                return;
-            }
-            
-            // Yanıt içeriğini kontrol et
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                console.error('API JSON döndürmedi:', contentType);
-                throw new Error('Geçersiz yanıt türü');
-            }
             
             const userData = await response.json();
             
@@ -260,11 +282,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Misafir kullanıcı: Giriş/kayıt butonlarını göster, çıkış butonunu gizle
                 if (authButtons) authButtons.style.display = 'block';
                 if (logoutBtn) logoutBtn.style.display = 'none';
+                if (friendBtn) friendBtn.style.display = 'none'; // Misafir kullanıcı arkadaş daveti oluşturamaz
             } else {
                 // Normal kullanıcı: Giriş/kayıt butonlarını gizle, çıkış butonunu göster
                 if (authButtons) authButtons.style.display = 'none';
                 if (logoutBtn) logoutBtn.style.display = 'inline-block';
+                if (friendBtn) friendBtn.style.display = 'inline-block'; // Normal kullanıcı arkadaş daveti oluşturabilir
             }
+            
+            console.log("Kullanıcı bilgisi yüklendi:", userData.username, "isGuest:", isGuest);
             
             // Socket'i kullanıcı kimliği ile başlat
             socket = initializeSocket(userData._id);
@@ -281,6 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Giriş/kayıt butonlarını göster, çıkış butonunu gizle
             if (authButtons) authButtons.style.display = 'block';
             if (logoutBtn) logoutBtn.style.display = 'none';
+            if (friendBtn) friendBtn.style.display = 'none';
             
             // Hata durumunda socket'i başlat
             socket = initializeSocket(null);
@@ -302,6 +329,87 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Çıkış hatası:', error);
+        }
+    }
+    
+    // Arkadaş daveti oluştur
+    async function createFriendInvite() {
+        if (isGuest) {
+            alert('Sadece kayıtlı kullanıcılar arkadaş daveti oluşturabilir.');
+            return;
+        }
+        
+        try {
+            // Seçilen süre kontrolünü al
+            const validTimeControl = timeControl || 15;
+            
+            const response = await fetch('/api/arkadasdaveti/olustur', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ timeControl: validTimeControl })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                alert(`Hata: ${data.error || 'Davet oluşturulamadı'}`);
+                return;
+            }
+            
+            // Davet linkini göster
+            friendInviteLink.value = data.inviteUrl;
+            friendModal.style.display = 'flex';
+            
+        } catch (error) {
+            console.error('Arkadaş daveti oluşturma hatası:', error);
+            alert('Arkadaş daveti oluşturulurken bir hata oluştu.');
+        }
+    }
+    
+    // Arkadaş davet linkini kopyala
+    function copyFriendInviteLink() {
+        friendInviteLink.select();
+        document.execCommand('copy');
+        copyFriendLinkBtn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => {
+            copyFriendLinkBtn.innerHTML = '<i class="fas fa-copy"></i>';
+        }, 2000);
+    }
+    
+    // Arkadaş oyununa katıl
+    async function joinFriendGame(inviteId) {
+        try {
+            // Önce davet bilgisini kontrol et
+            const response = await fetch(`/api/arkadasdaveti/${inviteId}`);
+            
+            if (!response.ok) {
+                const data = await response.json();
+                alert(`Hata: ${data.error || 'Geçersiz davet'}`);
+                return;
+            }
+            
+            const inviteData = await response.json();
+            
+            // Eğer bu kullanıcı davet sahibi ise oyuna katılamaz
+            if (inviteData.invite.creatorId === usernameDisplay.getAttribute('data-id')) {
+                alert('Kendi davetinize katılamazsınız. Başka bir kullanıcı davetinizi kabul etmelidir.');
+                return;
+            }
+            
+            // Davet bilgisini göster
+            statusDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${inviteData.invite.createdBy} tarafından oluşturulan davete katılıyorsunuz... (${inviteData.invite.timeControl} dk)`;
+            setupContainer.style.display = 'none';
+            
+            // Socket'e davet bilgisini gönder
+            socket.emit('join_friend_game', { inviteId });
+            
+        } catch (error) {
+            console.error('Arkadaş oyununa katılma hatası:', error);
+            alert('Arkadaş oyununa katılırken bir hata oluştu.');
+            setupContainer.style.display = 'flex';
+            statusDiv.innerHTML = 'Oynamak için süre seçin ve eşleşme bulun';
         }
     }
     
@@ -343,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             draggable: true,
             position: 'start',
             orientation: orientation,
-            pieceTheme: '/img/chesspieces/wikipedia/{piece}.svg',
+            pieceTheme: '/img/chesspieces/wikipedia/{piece}.png',
             onDragStart: onDragStart,
             onDrop: onDrop,
             onSnapEnd: onSnapEnd
@@ -538,6 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerColor = data.color;
         timeControl = data.timeControl || 15;
         opponentName = data.opponent;
+        isFriendGame = data.isFriendGame || false;
         
         // Saatleri ayarla
         clocks.white = timeControl * 60 * 1000;
@@ -556,9 +665,17 @@ document.addEventListener('DOMContentLoaded', () => {
         gameContainer.style.display = 'block';
         resignBtn.style.display = 'inline-block';
         newGameBtn.style.display = 'none';
-        statusDiv.innerHTML = playerColor === 'white' ? 
+        
+        let statusText = playerColor === 'white' ? 
             '<i class="fas fa-chess-pawn" style="color: #333;"></i> Beyaz taşlarla oynuyorsunuz' : 
             '<i class="fas fa-chess-pawn" style="color: #000;"></i> Siyah taşlarla oynuyorsunuz';
+        
+        // Arkadaş oyunu ise belirt
+        if (isFriendGame) {
+            statusText += ' (Arkadaş Oyunu)';
+        }
+        
+        statusDiv.innerHTML = statusText;
         
         // Rakip adını göster
         opponentNameElement.textContent = opponentName;
@@ -659,6 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function newGame() {
         currentGameState = 'idle';
         gameId = null;
+        isFriendGame = false;
         
         // Arayüzü güncelle
         gameContainer.style.display = 'none';
@@ -667,6 +785,11 @@ document.addEventListener('DOMContentLoaded', () => {
         newGameBtn.style.display = 'none';
         statusDiv.innerHTML = 'Oynamak için süre seçin ve eşleşme bulun';
         resultModal.style.display = 'none';
+        
+        // Eğer URL'de davet parametresi varsa temizle
+        if (window.location.search.includes('invite=')) {
+            history.replaceState({}, document.title, window.location.pathname);
+        }
         
         // Saati durdur
         if (clockInterval) {
