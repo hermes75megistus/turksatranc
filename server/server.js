@@ -9,7 +9,6 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
-const { setupSocketIO } = require('./socket-handler');
 
 // Load environment variables
 dotenv.config();
@@ -42,6 +41,8 @@ mongoose.connect(MONGODB_URI, {
 .catch(err => {
   console.error('MongoDB bağlantı hatası:', err);
   console.error('MongoDB bağlantı hatası detayları:', err);
+  // Veritabanı bağlantısı olmadan uygulama çalışamaz, bu yüzden sonlandır
+  process.exit(1);
 });
 
 // User model
@@ -79,9 +80,41 @@ const GameSchema = new mongoose.Schema({
 
 const Game = mongoose.model('Game', GameSchema);
 
-// Model'leri dışa aktar ki socket-handler.js'de kullanabilelim
-module.exports.User = User;
-module.exports.Game = Game;
+// Misafir kullanıcı oluşturma fonksiyonu
+const createGuestUser = async () => {
+  try {
+    const guestUsername = `Misafir_${Math.random().toString(36).substring(2, 10)}`;
+    const guestEmail = `${guestUsername}@turksatranc.com`;
+    const guestPassword = Math.random().toString(36).substring(2, 15);
+    
+    // Parolayı hashle
+    const hashedPassword = await bcrypt.hash(guestPassword, 10);
+    
+    // Misafir kullanıcı oluştur
+    const guestUser = new User({
+      username: guestUsername,
+      email: guestEmail,
+      password: hashedPassword,
+      isGuest: true
+    });
+    
+    await guestUser.save();
+    return guestUser;
+  } catch (error) {
+    console.error('Misafir kullanıcı oluşturma hatası:', error);
+    throw error;
+  }
+};
+
+// Modülleri dışa aktar
+const gameModule = {
+  User,
+  Game,
+  createGuestUser
+};
+
+// Socket handler'ı yükle
+const { setupSocketIO } = require('./socket-handler')(gameModule);
 
 // Middleware ayarları
 app.use(cookieParser());
@@ -152,34 +185,6 @@ const isAuthenticated = async (req, res, next) => {
   // Ana sayfa veya API dışındaki istekler için devam et
   next();
 };
-
-// Misafir kullanıcı oluşturma fonksiyonu
-const createGuestUser = async () => {
-  try {
-    const guestUsername = `Misafir_${Math.random().toString(36).substring(2, 10)}`;
-    const guestEmail = `${guestUsername}@turksatranc.com`;
-    const guestPassword = Math.random().toString(36).substring(2, 15);
-    
-    // Parolayı hashle
-    const hashedPassword = await bcrypt.hash(guestPassword, 10);
-    
-    // Misafir kullanıcı oluştur
-    const guestUser = new User({
-      username: guestUsername,
-      email: guestEmail,
-      password: hashedPassword,
-      isGuest: true
-    });
-    
-    await guestUser.save();
-    return guestUser;
-  } catch (error) {
-    console.error('Misafir kullanıcı oluşturma hatası:', error);
-    throw error;
-  }
-};
-
-module.exports.createGuestUser = createGuestUser;
 
 // Express error handling middleware
 app.use((err, req, res, next) => {
@@ -488,18 +493,30 @@ app.get('*', (req, res) => {
 setupSocketIO(io);
 
 // Debug bilgilerini düzenli aralıklarla logla
+let socketStats = { activeGames: 0, waitingPlayers: 0, userSockets: 0 };
+
 setInterval(() => {
   console.log("------- SUNUCU DURUMU -------");
-  const stats = require('./socket-handler').getStats();
-  console.log(`Aktif oyunlar: ${stats.activeGames}`);
-  console.log(`Bekleyen oyuncular: ${stats.waitingPlayers}`);
-  console.log(`Socket-Kullanıcı eşleşmeleri: ${stats.userSockets}`);
+  try {
+    socketStats = require('./socket-handler').getStats();
+  } catch (error) {
+    console.error("İstatistik alma hatası:", error.message);
+  }
+  
+  console.log(`Aktif oyunlar: ${socketStats.activeGames}`);
+  console.log(`Bekleyen oyuncular: ${socketStats.waitingPlayers}`);
+  console.log(`Socket-Kullanıcı eşleşmeleri: ${socketStats.userSockets}`);
   console.log("-----------------------------");
 }, 60000); // Her 1 dakikada bir
 
 // Genel hata yakalama
 process.on('uncaughtException', (err) => {
   console.error('Yakalanmamış İstisna:', err);
+  // Kritik hatalar oluştuğunda uygulamayı yeniden başlatın
+  if (err.message.includes('FATAL') || err.message.includes('CRITICAL')) {
+    console.error('Kritik hata tespit edildi, uygulama yeniden başlatılıyor...');
+    process.exit(1);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -510,3 +527,6 @@ process.on('unhandledRejection', (reason, promise) => {
 server.listen(PORT, () => {
   console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
 });
+
+// Modül dışa aktarımı
+module.exports = { User, Game, createGuestUser };
