@@ -150,7 +150,7 @@ const rateLimiter = (req, res, next) => {
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
-  saveUninitialized: true, // Misafir kullanıcılar için true olmalı
+  saveUninitialized: false, // Misafir kullanıcı oluşturmadan önce session kaydetmeyi engelle
   store: MongoStore.create({ 
     mongoUrl: MONGODB_URI,
     ttl: 60 * 60 * 24 // 1 gün
@@ -165,20 +165,30 @@ app.use(session({
 
 // Auth middleware - Giriş yapılmamışsa misafir kullanıcı oluştur
 const isAuthenticated = async (req, res, next) => {
+  console.log("Auth middleware çalıştı, session:", req.session.userId ? "Var" : "Yok");
+  
   // Eğer oturum zaten varsa devam et
   if (req.session.userId) {
     return next();
   }
   
   // API istekleri için 401 hatası döndür
-  if (req.path.startsWith('/api/') && req.path !== '/api/misafir-giris') {
-    if (req.xhr || req.headers.accept && req.headers.accept.indexOf('json') > -1) {
+  if (req.path.startsWith('/api/') && 
+      req.path !== '/api/giris' && 
+      req.path !== '/api/kayit' && 
+      req.path !== '/api/misafir-giris' && 
+      req.path !== '/api/kullanici') {
+    
+    if (req.xhr || (req.headers.accept && req.headers.accept.indexOf('json') > -1)) {
       return res.status(401).json({ error: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
     }
   }
   
   // HTML sayfası istekleri için giriş sayfasına yönlendir
-  if (!req.path.startsWith('/api/') && req.path !== '/giris' && req.path !== '/kayit' && req.path !== '/') {
+  if (!req.path.startsWith('/api/') && 
+      req.path !== '/giris' && 
+      req.path !== '/kayit' && 
+      req.path !== '/') {
     return res.redirect('/giris');
   }
   
@@ -320,20 +330,36 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Geçersiz kullanıcı adı veya parola' });
     }
     
-    // Oturum başlatma
+    // Önceki oturumu temizle
+    if (req.session.userId) {
+      console.log(`Önceki oturum temizleniyor: ${req.session.userId}`);
+      req.session.userId = null;
+    }
+    
+    // Yeni oturum başlat
     req.session.userId = user._id;
     req.session.isGuest = false;
     
-    console.log('Kullanıcı girişi yapıldı:', username);
+    console.log('Kullanıcı girişi yapıldı:', username, 'Session ID:', req.session.id);
     
-    res.json({ success: true, redirect: '/' });
+    res.json({ 
+      success: true, 
+      redirect: '/',
+      user: {
+        _id: user._id,
+        username: user.username,
+        elo: user.elo
+      }
+    });
   } catch (error) {
     console.error('Giriş hatası:', error);
-    res.status(500).json({ error: 'Giriş sırasında bir hata oluştu', details: error.message });
+    res.status(500).json({ error: 'Giriş sırasında bir hata oluştu' });
   }
 });
 
 app.get('/api/cikis', (req, res) => {
+  console.log("Çıkış isteği, session:", req.session.userId ? "Var" : "Yok");
+  
   req.session.destroy(err => {
     if (err) {
       console.error('Çıkış hatası:', err);
@@ -351,8 +377,9 @@ app.get('/profil', isAuthenticated, (req, res) => {
 
 app.get('/api/kullanici', async (req, res) => {
   try {
-    // Kullanıcı girişi yoksa misafir kullanıcı bilgisi döndür
+    // Session'da userId yoksa misafir kullanıcı olarak işaretle
     if (!req.session.userId) {
+      console.log("Kullanıcı bilgisi isteği: Oturum yok, misafir bilgisi dönülüyor");
       return res.json({
         username: 'Misafir',
         elo: 1200,
@@ -360,16 +387,25 @@ app.get('/api/kullanici', async (req, res) => {
       });
     }
     
-    console.log('Kullanıcı bilgisi isteniyor, userId:', req.session.userId);
+    console.log(`Kullanıcı bilgisi isteniyor, userId: ${req.session.userId}`);
     const user = await User.findById(req.session.userId).select('-password');
+    
     if (!user) {
-      return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+      console.log("Kullanıcı bulunamadı, misafir bilgisi dönülüyor");
+      // Session'da userId var ama kullanıcı bulunamıyorsa session'ı temizle
+      req.session.userId = null;
+      return res.json({
+        username: 'Misafir',
+        elo: 1200,
+        isGuest: true
+      });
     }
-    console.log('Kullanıcı bilgisi gönderiliyor:', user.username);
+    
+    console.log(`Kullanıcı bilgisi gönderiliyor: ${user.username}`);
     res.json(user);
   } catch (error) {
     console.error('Kullanıcı bilgisi alma hatası:', error);
-    res.status(500).json({ error: 'Kullanıcı bilgisi alınırken bir hata oluştu', details: error.message });
+    res.status(500).json({ error: 'Kullanıcı bilgisi alınırken bir hata oluştu' });
   }
 });
 
