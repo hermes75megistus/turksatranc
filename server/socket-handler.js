@@ -46,42 +46,48 @@ module.exports = function(gameModule) {
         const cookies = socket.handshake.headers.cookie;
         console.log('Socket bağlantısı - cookies:', cookies ? 'Var' : 'Yok');
         
-        let userId = null;
-        let isGuest = true;
+        // Auth bilgilerini kontrol et
+        const sessionId = socket.handshake.auth.sessionId;
+        const userId = socket.handshake.auth.userId;
         
-        // Oturum açılmışsa userId al
-        if (cookies && cookies.includes('connect.sid=')) {
-          // Burada gerçek bir session store kullanarak userId'yi almalısınız
-          // Örnek amaçlı sadece cookie'nin varlığını kontrol ediyoruz
-          console.log('Socket bağlantısı - oturum çerezi bulundu');
-          
-          // Socket handshake'ten auth verilerini kontrol et
-          if (socket.handshake.auth && socket.handshake.auth.userId) {
-            userId = socket.handshake.auth.userId;
-            isGuest = false;
-            
-            // Kullanıcı bilgisini doğrula
+        console.log(`Socket kimlik doğrulama bilgileri: sessionId=${sessionId ? 'Var' : 'Yok'}, userId=${userId || 'Yok'}`);
+        
+        // UserId varsa ve geçerliyse bu kullanıcıyı kullan
+        if (userId) {
+          try {
             const user = await User.findById(userId);
             if (user) {
               socket.userId = user._id;
               socket.username = user.username;
               socket.isGuest = user.isGuest || false;
               
+              console.log(`Kullanıcı doğrulandı: ${user.username} (${user._id})`);
+              
               // Socket ID ile kullanıcı eşleştir
               userSockets.set(user._id.toString(), socket.id);
-              console.log(`Kullanıcı eşleşmesi: ${user.username} -> ${socket.id}`);
               return next();
             }
-          } else if (socket.handshake.auth && socket.handshake.auth.sessionId) {
-            // SessionId kullanarak da kullanıcıyı bulmayı dene
-            // Bu örnekte tam implementation yok, gerçek uygulamada session store'dan userId çekilmeli
-            console.log('Socket bağlantısı - sessionId ile doğrulama denenecek:', 
-              socket.handshake.auth.sessionId ? 'SessionId var' : 'SessionId yok');
+          } catch (userError) {
+            console.error('Kullanıcı doğrulama hatası:', userError);
           }
         }
         
-        // Oturum yoksa veya kullanıcı bulunamadıysa misafir kullanıcı oluştur
-        console.log('Socket bağlantısı - misafir kullanıcı oluşturuluyor');
+        // Session ID varsa session store'dan kullanıcı kimliğini almayı dene
+        // NOT: Bu kısım sizin session store implementasyonunuza göre değişebilir
+        if (sessionId && cookies) {
+          try {
+            // Burada session verilerini kontrol etme işlemi yapılmalı
+            // Gerçek uygulamada session store'dan userId çekilmeli
+            console.log('Socket bağlantısı - sessionId ile doğrulama denenecek');
+            
+            // Bu örnekte, session store'u kontrol etme işlemi yapılmamaktadır
+            // Gerçek uygulamada burada session veritabanı sorgusu olmalıdır
+          } catch (sessionError) {
+            console.error('Session doğrulama hatası:', sessionError);
+          }
+        }
+        
+        // Doğrulanmış kullanıcı bulunamadıysa, misafir kullanıcı oluştur
         const guestUser = await createGuestUser();
         socket.userId = guestUser._id;
         socket.username = guestUser.username;
@@ -89,23 +95,12 @@ module.exports = function(gameModule) {
         
         // Socket ID ile kullanıcı eşleştir
         userSockets.set(guestUser._id.toString(), socket.id);
-        console.log(`Misafir kullanıcı eşleşmesi: ${guestUser.username} -> ${socket.id}`);
+        console.log(`Misafir kullanıcı oluşturuldu: ${guestUser.username} (${guestUser._id})`);
         
         return next();
       } catch (error) {
         console.error('Socket kimlik doğrulama hatası:', error);
-        
-        // Hata durumunda da misafir kullanıcı oluştur
-        try {
-          const guestUser = await createGuestUser();
-          socket.userId = guestUser._id;
-          socket.username = guestUser.username;
-          socket.isGuest = true;
-          userSockets.set(guestUser._id.toString(), socket.id);
-          return next();
-        } catch (innerError) {
-          return next(new Error('Misafir kullanıcı oluşturma hatası'));
-        }
+        return next(new Error('Kimlik doğrulama hatası'));
       }
     });
 
@@ -122,6 +117,8 @@ module.exports = function(gameModule) {
         try {
           console.log(`Kimlik doğrulama isteği userId: ${userId}, socket.userId: ${socket.userId}`);
           
+// Devamı...
+
           // Kullanıcı zaten doğrulandıysa ve aynı kimlikse işleme gerek yok
           if (socket.userId && socket.userId.toString() === userId) {
             console.log('Kullanıcı zaten doğrulanmış, işlem atlanıyor.');
@@ -171,7 +168,7 @@ module.exports = function(gameModule) {
         }
         
         try {
-// Kullanıcı bilgisini doğrula
+          // Kullanıcı bilgisini doğrula
           const user = await User.findById(socket.userId);
           
           if (!user) {
@@ -302,7 +299,7 @@ module.exports = function(gameModule) {
         }
       });
 
-      // Hamle yapma olayı - Düzeltilmiş (ana seviyeye taşındı)
+      // Hamle yapma olayı
       socket.on('move', async ({ gameId, move, fen, pgn }) => {
         console.log(`Hamle isteği - Socket: ${socket.id}, Oyun: ${gameId}, Hamle: ${move.from} -> ${move.to}`);
         
