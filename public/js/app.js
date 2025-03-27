@@ -494,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
            draggable: true,
            position: 'start',
            orientation: orientation,
-           pieceTheme: '/img/chesspieces/wikipedia/{piece}.png',
+           pieceTheme: '/img/chesspieces/wikipedia/{piece}.svg',
            onDragStart: onDragStart,
            onDrop: onDrop,
            onSnapEnd: onSnapEnd
