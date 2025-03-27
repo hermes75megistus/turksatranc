@@ -155,6 +155,71 @@ module.exports = function(gameModule) {
             userSockets.set(guestUser._id.toString(), socket.id);
             console.log(`Misafir kullanıcı oluşturuldu: ${guestUser.username}`);
           }
+        
+        return next();
+      } catch (error) {
+        console.error('Socket kimlik doğrulama hatası:', error);
+        
+        // Hata durumunda da misafir kullanıcı oluştur
+        try {
+          const guestUser = await createGuestUser();
+          socket.userId = guestUser._id;
+          socket.username = guestUser.username;
+          socket.isGuest = true;
+          userSockets.set(guestUser._id.toString(), socket.id);
+          return next();
+        } catch (innerError) {
+          return next(new Error('Misafir kullanıcı oluşturma hatası'));
+        }
+      }
+    });
+
+    io.on('connection', async (socket) => {
+      console.log(`Yeni socket bağlantısı: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}, UserId: ${socket.userId || 'Yok'}`);
+      
+      // Tüm socket hatalarını yakalama
+      socket.on('error', (error) => {
+        console.error('Socket hatası:', error);
+      });
+      
+      // Kullanıcı kimliğini belirle
+      socket.on('authenticate', async (userId) => {
+        try {
+          console.log(`Kimlik doğrulama isteği userId: ${userId}, socket.userId: ${socket.userId}`);
+          
+          // Kullanıcı zaten doğrulandıysa ve aynı kimlikse işleme gerek yok
+          if (socket.userId && socket.userId.toString() === userId) {
+            console.log('Kullanıcı zaten doğrulanmış, işlem atlanıyor.');
+            return;
+          }
+          
+          // Kullanıcıyı doğrula
+          if (userId) {
+            const user = await User.findById(userId);
+            if (user) {
+              console.log(`Kullanıcı bulundu: ${user.username}`);
+              socket.userId = user._id;
+              socket.username = user.username;
+              socket.isGuest = user.isGuest || false;
+              
+              // Kullanıcı Socket Map'e kaydet
+              userSockets.set(user._id.toString(), socket.id);
+              console.log(`Kullanıcı socket eşleşmesi güncellendi: ${user.username} -> ${socket.id}`);
+              return;
+            }
+          }
+          
+          // Kullanıcı bulunamadıysa ve socket.userId yoksa, misafir kullanıcı oluştur
+          if (!socket.userId) {
+            const guestUser = await createGuestUser();
+            socket.userId = guestUser._id;
+            socket.username = guestUser.username;
+            socket.isGuest = true;
+            
+            // Kullanıcı Socket Map'e kaydet
+            userSockets.set(guestUser._id.toString(), socket.id);
+            console.log(`Misafir kullanıcı oluşturuldu: ${guestUser.username}`);
+          }
         } catch (error) {
           console.error('Kimlik doğrulama hatası:', error);
         }
