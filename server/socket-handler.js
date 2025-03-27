@@ -117,7 +117,6 @@ module.exports = function(gameModule) {
         try {
           console.log(`Kimlik doğrulama isteği userId: ${userId}, socket.userId: ${socket.userId}`);
           
-// Devamı...
 
           // Kullanıcı zaten doğrulandıysa ve aynı kimlikse işleme gerek yok
           if (socket.userId && socket.userId.toString() === userId) {
