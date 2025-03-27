@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arkadaş Daveti - Türk Satranç</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/davet.css">
+    <link rel="shortcut icon" href="img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="site-wrapper">
+        <header class="main-header">
+            <div class="container">
+                <div class="logo">
+                    <a href="/">
+                        <img src="img/logo.png" alt="Türk Satranç Logo">
+                        <span>TürkSatranç</span>
+                    </a>
+                </div>
+                <nav class="main-nav">
+                    <ul>
+                        <li><a href="/" class="active"><i class="fas fa-chess-board"></i> Oyna</a></li>
+                        <li><a href="/siralama"><i class="fas fa-trophy"></i> Sıralama</a></li>
+                        <li><a href="/gecmis-oyunlar"><i class="fas fa-history"></i> Geçmiş Oyunlar</a></li>
+                        <li><a href="/profil"><i class="fas fa-user"></i> Profil</a></li>
+                        <li><a href="/turnuvalar"><i class="fas fa-medal"></i> Turnuvalar</a></li>
+                    </ul>
+                </nav>
+                <div class="user-controls">
+                    <div class="user-info">
+                        <span id="username-display">Misafir</span>
+                        <span id="elo-display">1200</span>
+                    </div>
+                    <div id="auth-buttons">
+                        <a href="/giris" class="btn primary-btn small-btn"><i class="fas fa-sign-in-alt"></i> Giriş</a>
+                        <a href="/kayit" class="btn secondary-btn small-btn"><i class="fas fa-user-plus"></i> Kayıt</a>
+                    </div>
+                    <button id="logout-btn" class="btn secondary-btn small-btn" style="display: none;"><i class="fas fa-sign-out-alt"></i> Çıkış</button>
+                </div>
+            </div>
+        </header>
+        
+        <main class="container">
+            <div id="invite-container" class="turkish-pattern-light">
+                <div class="invite-content">
+                    <h1><i class="fas fa-envelope-open-text"></i> Arkadaş Daveti</h1>
+                    <div id="loading" class="invite-loading">
+                        <i class="fas fa-spinner fa-spin fa-3x"></i>
+                        <p>Davet bilgileri kontrol ediliyor...</p>
+                    </div>
+                    
+                    <div id="invite-details" class="invite-details" style="display: none;">
+                        <div class="invite-icon">
+                            <i class="fas fa-chess-king"></i>
+                        </div>
+                        <h2>Satranç Davetiniz Var!</h2>
+                        <p class="invite-info">
+                            <span id="creator-name">Arkadaşınız</span> sizi bir satranç oyununa davet ediyor!
+                        </p>
+                        <div class="invite-meta">
+                            <div class="time-control">
+                                <i class="fas fa-clock"></i>
+                                <span id="time-control">15</span> dakika
+                            </div>
+                        </div>
+                        <div class="invite-actions">
+                            <button id="accept-btn" class="btn primary-btn"><i class="fas fa-check"></i> Daveti Kabul Et</button>
+                            <a href="/" class="btn secondary-btn"><i class="fas fa-times"></i> Reddet</a>
+                        </div>
+                    </div>
+                    
+                    <div id="invite-error" class="invite-error" style="display: none;">
+                        <div class="error-icon">
+                            <i class="fas fa-exclamation-circle"></i>
+                        </div>
+                        <h2>Davet Hatası</h2>
+                        <p id="error-message">
+                            Bu davet geçersiz veya süresi dolmuş olabilir.
+                        </p>
+                        <div class="invite-actions">
+                            <a href="/" class="btn primary-btn"><i class="fas fa-home"></i> Ana Sayfa</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="main-footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="copyright">
+                        <p>&copy; 2025 TürkSatranç - Tüm hakları saklıdır.</p>
+                    </div>
+                    <div class="social-links">
+                        <a href="#" class="social-icon"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-icon"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.0/socket.io.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const inviteContainer = document.getElementById('invite-container');
+            const loading = document.getElementById('loading');
+            const inviteDetails = document.getElementById('invite-details');
+            const inviteError = document.getElementById('invite-error');
+            const creatorName = document.getElementById('creator-name');
+            const timeControl = document.getElementById('time-control');
+            const acceptBtn = document.getElementById('accept-btn');
+            const errorMessage = document.getElementById('error-message');
+            const usernameDisplay = document.getElementById('username-display');
+            const eloDisplay = document.getElementById('elo-display');
+            const logoutBtn = document.getElementById('logout-btn');
+            const authButtons = document.getElementById('auth-buttons');
+            
+            let socket = null;
+            let inviteData = null;
+            
+            // URL'den davet ID'sini al
+            const inviteId = window.location.pathname.split('/').pop();
+            
+            // Kullanıcı bilgilerini yükle
+            async function loadUserInfo() {
+                try {
+                    const response = await fetch('/api/kullanici', {
+                        credentials: 'include'
+                    });
+                    
+                    const userData = await response.json();
+                    
+                    // Kullanıcı bilgilerini göster
+                    usernameDisplay.textContent = userData.username || 'Misafir';
+                    eloDisplay.textContent = userData.elo || '1200';
+                    
+                    // Kullanıcı kimliğini data attribute olarak sakla
+                    if (userData._id) {
+                        usernameDisplay.setAttribute('data-id', userData._id);
+                    }
+                    
+                    // Kullanıcı tipine göre butonları göster/gizle
+                    if (userData.isGuest) {
+                        if (authButtons) authButtons.style.display = 'block';
+                        if (logoutBtn) logoutBtn.style.display = 'none';
+                    } else {
+                        if (authButtons) authButtons.style.display = 'none';
+                        if (logoutBtn) logoutBtn.style.display = 'inline-block';
+                    }
+                    
+                    // Socket bağlantısını kur
+                    socket = io();
+                    
+                    // Davet bilgilerini kontrol et
+                    checkInvite(inviteId);
+                    
+                } catch (error) {
+                    console.error('Kullanıcı bilgisi yükleme hatası:', error);
+                    showError('Kullanıcı bilgisi alınamadı. Lütfen daha sonra tekrar deneyin.');
+                }
+            }
+            
+            // Davet bilgilerini kontrol et
+            async function checkInvite(inviteId) {
+                try {
+                    const response = await fetch(`/api/arkadasdaveti/${inviteId}`, {
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        showError(errorData.error || 'Davet geçersiz veya süresi dolmuş.');
+                        return;
+                    }
+                    
+                    const data = await response.json();
+                    inviteData = data.invite;
+                    
+                    // Davet bilgilerini göster
+                    creatorName.textContent = inviteData.createdBy;
+                    timeControl.textContent = inviteData.timeControl;
+                    
+                    // Yükleme ekranını gizle, davet detaylarını göster
+                    loading.style.display = 'none';
+                    inviteDetails.style.display = 'block';
+                    
+                } catch (error) {
+                    console.error('Davet bilgisi alma hatası:', error);
+                    showError('Davet bilgisi alınamadı. Lütfen daha sonra tekrar deneyin.');
+                }
+            }
+            
+            // Hata mesajı göster
+            function showError(message) {
+                loading.style.display = 'none';
+                inviteDetails.style.display = 'none';
+                errorMessage.textContent = message;
+                inviteError.style.display = 'block';
+            }
+            
+            // Daveti kabul et
+            function acceptInvite() {
+                if (!inviteData) {
+                    showError('Davet bilgisi bulunamadı.');
+                    return;
+                }
+                
+                if (!socket) {
+                    showError('Sunucu bağlantısı kurulamadı.');
+                    return;
+                }
+                
+                // Yönlendirme
+                window.location.href = `/?invite=${inviteId}`;
+            }
+            
+            // Çıkış yap
+            async function logout() {
+                try {
+                    const response = await fetch('/api/cikis');
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.href = data.redirect || '/giris';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Çıkış hatası:', error);
+                }
+            }
+            
+            // Event Listeners
+            if (acceptBtn) {
+                acceptBtn.addEventListener('click', acceptInvite);
+            }
+            
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', logout);
+            }
+            
+            // Kullanıcı bilgilerini yükle
+            loadUserInfo();
+        });
+    </script>
+</body>
+</html>
