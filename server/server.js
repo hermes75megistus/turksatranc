@@ -9,6 +9,7 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
+const { v4: uuidv4 } = require('uuid'); // UUID için paketi ekliyoruz
 
 // Load environment variables
 dotenv.config();
@@ -56,7 +57,13 @@ const UserSchema = new mongoose.Schema({
   wins: { type: Number, default: 0 },
   losses: { type: Number, default: 0 },
   draws: { type: Number, default: 0 },
-  isGuest: { type: Boolean, default: false } // Misafir kullanıcı olup olmadığı
+  isGuest: { type: Boolean, default: false }, // Misafir kullanıcı olup olmadığı
+  friendInvites: [{ 
+    inviteId: String,
+    createdAt: { type: Date, default: Date.now },
+    timeControl: Number,
+    expires: Date
+  }]
 });
 
 const User = mongoose.model('User', UserSchema);
@@ -75,10 +82,43 @@ const GameSchema = new mongoose.Schema({
     from: String, 
     to: String, 
     timestamp: { type: Date, default: Date.now } 
-  }]
+  }],
+  inviteId: { type: String, default: null }, // Arkadaş davet ID'si
+  isFriendGame: { type: Boolean, default: false }, // Arkadaş oyunu mu?
+  tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament', default: null } // Turnuva ID'si
 });
 
 const Game = mongoose.model('Game', GameSchema);
+
+// Turnuva modeli
+const TournamentSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  description: { type: String },
+  creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  startTime: { type: Date, required: true },
+  endTime: { type: Date },
+  status: { 
+    type: String, 
+    enum: ['created', 'registration', 'inProgress', 'completed', 'cancelled'], 
+    default: 'created' 
+  },
+  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  maxParticipants: { type: Number, default: 16 },
+  rounds: { type: Number, default: 4 },
+  timeControl: { type: Number, default: 15 }, // dakika cinsinden
+  games: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Game' }],
+  standings: [{
+    playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    points: { type: Number, default: 0 },
+    gamesPlayed: { type: Number, default: 0 },
+    wins: { type: Number, default: 0 },
+    losses: { type: Number, default: 0 },
+    draws: { type: Number, default: 0 }
+  }],
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Tournament = mongoose.model('Tournament', TournamentSchema);
 
 // Misafir kullanıcı oluşturma fonksiyonu
 const createGuestUser = async () => {
@@ -106,11 +146,38 @@ const createGuestUser = async () => {
   }
 };
 
+// Arkadaş daveti oluşturma fonksiyonu
+const createFriendInvite = async (userId, timeControl) => {
+  try {
+    const inviteId = uuidv4(); // Benzersiz davet ID'si
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // 24 saat geçerli
+    
+    // Kullanıcıya davet ekle
+    await User.findByIdAndUpdate(userId, {
+      $push: {
+        friendInvites: {
+          inviteId: inviteId,
+          timeControl: timeControl,
+          expires: expiresAt
+        }
+      }
+    });
+    
+    return inviteId;
+  } catch (error) {
+    console.error('Arkadaş daveti oluşturma hatası:', error);
+    throw error;
+  }
+};
+
 // Modülleri dışa aktar
 const gameModule = {
   User,
   Game,
-  createGuestUser
+  Tournament,
+  createGuestUser,
+  createFriendInvite
 };
 
 // Socket handler'ı yükle
@@ -146,20 +213,23 @@ const rateLimiter = (req, res, next) => {
   next();
 };
 
-// Session yönetimi
+// Session yönetimi - FIX: Oturum ayarlarını düzelttik
+const sessionStore = MongoStore.create({ 
+  mongoUrl: MONGODB_URI,
+  ttl: 60 * 60 * 24 // 1 gün
+});
+
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
-  saveUninitialized: false, // Misafir kullanıcı oluşturmadan önce session kaydetmeyi engelle
-  store: MongoStore.create({ 
-    mongoUrl: MONGODB_URI,
-    ttl: 60 * 60 * 24 // 1 gün
-  }),
+  saveUninitialized: false, 
+  store: sessionStore,
   cookie: { 
     maxAge: 1000 * 60 * 60 * 24, // 1 gün
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production' // Production'da HTTPS kullan
+    secure: process.env.NODE_ENV === 'production', // Production'da HTTPS kullan
+    path: '/' // Path'i açıkça belirt
   }
 }));
 
@@ -169,6 +239,19 @@ const isAuthenticated = async (req, res, next) => {
   
   // Eğer oturum zaten varsa devam et
   if (req.session.userId) {
+    // FIX: Session'a isGuest bilgisini ekle
+    try {
+      if (req.session.isGuest === undefined) {
+        const user = await User.findById(req.session.userId);
+        if (user) {
+          req.session.isGuest = user.isGuest || false;
+          req.session.username = user.username;
+        }
+      }
+    } catch (error) {
+      console.error('Session kullanıcı bilgisi güncelleme hatası:', error);
+    }
+    
     return next();
   }
   
@@ -220,6 +303,7 @@ app.post('/api/misafir-giris', async (req, res) => {
     // Oturumu başlat
     req.session.userId = guestUser._id;
     req.session.isGuest = true;
+    req.session.username = guestUser.username;
     
     res.json({ 
       success: true, 
@@ -288,6 +372,7 @@ app.post('/api/kayit', async (req, res) => {
     // Oturum başlatma
     req.session.userId = newUser._id;
     req.session.isGuest = false;
+    req.session.username = newUser.username;
     
     res.status(201).json({ success: true, redirect: '/' });
   } catch (error) {
@@ -334,11 +419,14 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
     if (req.session.userId) {
       console.log(`Önceki oturum temizleniyor: ${req.session.userId}`);
       req.session.userId = null;
+      req.session.isGuest = null;
+      req.session.username = null;
     }
     
     // Yeni oturum başlat
     req.session.userId = user._id;
-    req.session.isGuest = false;
+    req.session.isGuest = user.isGuest || false;
+    req.session.username = user.username;
     
     console.log('Kullanıcı girişi yapıldı:', username, 'Session ID:', req.session.id);
     
@@ -348,7 +436,8 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
       user: {
         _id: user._id,
         username: user.username,
-        elo: user.elo
+        elo: user.elo,
+        isGuest: user.isGuest || false
       }
     });
   } catch (error) {
@@ -387,13 +476,15 @@ app.get('/api/kullanici', async (req, res) => {
       });
     }
     
-    console.log(`Kullanıcı bilgisi isteniyor, userId: ${req.session.userId}`);
+    console.log(`Kullanıcı bilgisi isteniyor, userId: ${req.session.userId}, isGuest: ${req.session.isGuest}`);
     const user = await User.findById(req.session.userId).select('-password');
     
     if (!user) {
       console.log("Kullanıcı bulunamadı, misafir bilgisi dönülüyor");
       // Session'da userId var ama kullanıcı bulunamıyorsa session'ı temizle
       req.session.userId = null;
+      req.session.isGuest = null;
+      req.session.username = null;
       return res.json({
         username: 'Misafir',
         elo: 1200,
@@ -401,7 +492,7 @@ app.get('/api/kullanici', async (req, res) => {
       });
     }
     
-    console.log(`Kullanıcı bilgisi gönderiliyor: ${user.username}`);
+    console.log(`Kullanıcı bilgisi gönderiliyor: ${user.username}, isGuest: ${user.isGuest}`);
     res.json(user);
   } catch (error) {
     console.error('Kullanıcı bilgisi alma hatası:', error);
@@ -447,6 +538,358 @@ app.post('/api/sifre-degistir', isAuthenticated, async (req, res) => {
     res.status(500).json({ error: 'Parola değiştirilirken bir hata oluştu' });
   }
 });
+
+// ======== YENİ: ARKADAŞ DAVETİ ROTALARI ========
+
+// Arkadaş daveti oluştur
+app.post('/api/arkadasdaveti/olustur', isAuthenticated, async (req, res) => {
+  try {
+    const { timeControl } = req.body;
+    
+    if (!req.session.userId || req.session.isGuest) {
+      return res.status(403).json({ error: 'Sadece kayıtlı kullanıcılar arkadaş daveti oluşturabilir' });
+    }
+    
+    // Geçerli bir süre kontrolü
+    const validTimeControl = parseInt(timeControl) || 15;
+    
+    // Davet oluştur
+    const inviteId = await createFriendInvite(req.session.userId, validTimeControl);
+    
+    // Davet URL'sini oluştur
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    const inviteUrl = `${baseUrl}/davet/${inviteId}`;
+    
+    res.json({ 
+      success: true, 
+      inviteId: inviteId,
+      inviteUrl: inviteUrl 
+    });
+    
+  } catch (error) {
+    console.error('Arkadaş daveti oluşturma hatası:', error);
+    res.status(500).json({ error: 'Arkadaş daveti oluşturulurken bir hata oluştu' });
+  }
+});
+
+// Arkadaş davetini doğrula ve kabul et
+app.get('/api/arkadasdaveti/:inviteId', isAuthenticated, async (req, res) => {
+  try {
+    const { inviteId } = req.params;
+    
+    if (!inviteId) {
+      return res.status(400).json({ error: 'Geçersiz davet ID' });
+    }
+    
+    // Daveti bulma
+    const user = await User.findOne({
+      'friendInvites.inviteId': inviteId,
+      'friendInvites.expires': { $gte: new Date() } // Süresi dolmamış davetler
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Davet bulunamadı veya süresi dolmuş' });
+    }
+    
+    // İlgili daveti al
+    const invite = user.friendInvites.find(inv => inv.inviteId === inviteId);
+    
+    res.json({
+      success: true,
+      invite: {
+        id: inviteId,
+        createdBy: user.username,
+        creatorId: user._id,
+        timeControl: invite.timeControl,
+        expires: invite.expires
+      }
+    });
+    
+  } catch (error) {
+    console.error('Arkadaş daveti doğrulama hatası:', error);
+    res.status(500).json({ error: 'Arkadaş daveti doğrulanırken bir hata oluştu' });
+  }
+});
+
+// Davet sayfasını göster
+app.get('/davet/:inviteId', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/davet.html'));
+});
+
+// ======== YENİ: TURNUVA ROTALARI ========
+
+// Turnuva sayfası
+app.get('/turnuvalar', isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/turnuvalar.html'));
+});
+
+app.get('/turnuva/:id', isAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/turnuva-detay.html'));
+});
+
+// Tüm turnuvaları getir
+app.get('/api/turnuvalar', isAuthenticated, async (req, res) => {
+  try {
+    const status = req.query.status || 'all';
+    let filter = {};
+    
+    if (status !== 'all') {
+      filter.status = status;
+    }
+    
+    const tournaments = await Tournament.find(filter)
+      .sort({ startTime: -1 })
+      .populate('creator', 'username')
+      .lean(); // Performans için lean() kullan
+      
+    res.json(tournaments);
+  } catch (error) {
+    console.error('Turnuva listesi alma hatası:', error);
+    res.status(500).json({ error: 'Turnuvalar alınırken bir hata oluştu' });
+  }
+});
+
+// Yeni turnuva oluştur
+app.post('/api/turnuvalar', isAuthenticated, async (req, res) => {
+  try {
+    if (req.session.isGuest) {
+      return res.status(403).json({ error: 'Sadece kayıtlı kullanıcılar turnuva oluşturabilir' });
+    }
+    
+    const { name, description, startTime, maxParticipants, rounds, timeControl } = req.body;
+    
+    // Doğrulama
+    if (!name || !startTime) {
+      return res.status(400).json({ error: 'Turnuva adı ve başlangıç zamanı gereklidir' });
+    }
+    
+    // Tarih doğrulaması
+    const tournamentStartTime = new Date(startTime);
+    if (isNaN(tournamentStartTime.getTime()) || tournamentStartTime < new Date()) {
+      return res.status(400).json({ error: 'Geçerli bir gelecek tarih belirtmelisiniz' });
+    }
+    
+    // Yeni turnuva oluştur
+    const newTournament = new Tournament({
+      name,
+      description,
+      creator: req.session.userId,
+      startTime: tournamentStartTime,
+      status: 'registration', // Kayıt açık
+      maxParticipants: maxParticipants || 16,
+      rounds: rounds || 4,
+      timeControl: timeControl || 15,
+      // Oluşturan kullanıcıyı otomatik ekle
+      participants: [req.session.userId],
+      standings: [{
+        playerId: req.session.userId,
+        points: 0,
+        gamesPlayed: 0
+      }]
+    });
+    
+    await newTournament.save();
+    
+    res.status(201).json({ 
+      success: true, 
+      tournament: newTournament,
+      message: 'Turnuva başarıyla oluşturuldu'
+    });
+    
+  } catch (error) {
+    console.error('Turnuva oluşturma hatası:', error);
+    res.status(500).json({ error: 'Turnuva oluşturulurken bir hata oluştu' });
+  }
+});
+
+// Turnuva detayı
+app.get('/api/turnuvalar/:id', isAuthenticated, async (req, res) => {
+  try {
+    const tournamentId = req.params.id;
+    
+    const tournament = await Tournament.findById(tournamentId)
+      .populate('creator', 'username')
+      .populate('participants', 'username elo')
+      .populate({
+        path: 'games',
+        populate: [
+          { path: 'whitePlayer', select: 'username' },
+          { path: 'blackPlayer', select: 'username' }
+        ]
+      });
+      
+    if (!tournament) {
+      return res.status(404).json({ error: 'Turnuva bulunamadı' });
+    }
+    
+    res.json(tournament);
+  } catch (error) {
+    console.error('Turnuva detayı alma hatası:', error);
+    res.status(500).json({ error: 'Turnuva detayı alınırken bir hata oluştu' });
+  }
+});
+
+// Turnuvaya katıl
+app.post('/api/turnuvalar/:id/katil', isAuthenticated, async (req, res) => {
+  try {
+    const tournamentId = req.params.id;
+    
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ error: 'Turnuva bulunamadı' });
+    }
+    
+    // Turnuva durumunu kontrol et
+    if (tournament.status !== 'registration') {
+      return res.status(400).json({ error: 'Bu turnuvaya artık kayıt yapılamaz' });
+    }
+    
+    // Katılımcı sayısını kontrol et
+    if (tournament.participants.length >= tournament.maxParticipants) {
+      return res.status(400).json({ error: 'Turnuva kapasitesi dolu' });
+    }
+    
+    // Zaten kayıtlı mı kontrol et
+    if (tournament.participants.some(p => p.toString() === req.session.userId.toString())) {
+      return res.status(400).json({ error: 'Bu turnuvaya zaten kayıtlısınız' });
+    }
+    
+    // Turnuvaya katıl
+    await Tournament.findByIdAndUpdate(tournamentId, {
+      $push: { 
+        participants: req.session.userId,
+        standings: {
+          playerId: req.session.userId,
+          points: 0,
+          gamesPlayed: 0
+        }
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Turnuvaya başarıyla katıldınız'
+    });
+    
+  } catch (error) {
+    console.error('Turnuvaya katılma hatası:', error);
+    res.status(500).json({ error: 'Turnuvaya katılırken bir hata oluştu' });
+  }
+});
+
+// Turnuvadan ayrıl
+app.post('/api/turnuvalar/:id/ayril', isAuthenticated, async (req, res) => {
+  try {
+    const tournamentId = req.params.id;
+    
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ error: 'Turnuva bulunamadı' });
+    }
+    
+    // Turnuva durumunu kontrol et
+    if (tournament.status !== 'registration') {
+      return res.status(400).json({ error: 'Turnuva başladıktan sonra ayrılamazsınız' });
+    }
+    
+    // Turnuvadan ayrıl
+    await Tournament.findByIdAndUpdate(tournamentId, {
+      $pull: { 
+        participants: req.session.userId,
+        standings: { playerId: req.session.userId }
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Turnuvadan başarıyla ayrıldınız'
+    });
+    
+  } catch (error) {
+    console.error('Turnuvadan ayrılma hatası:', error);
+    res.status(500).json({ error: 'Turnuvadan ayrılırken bir hata oluştu' });
+  }
+});
+
+// Turnuvayı başlat (sadece turnuva oluşturanı)
+app.post('/api/turnuvalar/:id/baslat', isAuthenticated, async (req, res) => {
+  try {
+    const tournamentId = req.params.id;
+    
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ error: 'Turnuva bulunamadı' });
+    }
+    
+    // Yetkiyi kontrol et
+    if (tournament.creator.toString() !== req.session.userId.toString()) {
+      return res.status(403).json({ error: 'Bu işlemi yapmaya yetkiniz yok' });
+    }
+    
+    // Turnuva durumunu kontrol et
+    if (tournament.status !== 'registration') {
+      return res.status(400).json({ error: 'Bu turnuva zaten başlatılmış veya tamamlanmış' });
+    }
+    
+    // Katılımcı sayısını kontrol et (en az 4 oyuncu)
+    if (tournament.participants.length < 4) {
+      return res.status(400).json({ error: 'Turnuva başlatmak için en az 4 katılımcı gerekiyor' });
+    }
+    
+    // Eşleşmeleri oluştur
+    const matches = createTournamentMatches(tournament.participants, tournament.timeControl);
+    
+    // Turnuvayı başlat
+    await Tournament.findByIdAndUpdate(tournamentId, {
+      status: 'inProgress',
+      $set: { games: matches.gameIds }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Turnuva başarıyla başlatıldı',
+      matches: matches.count
+    });
+    
+  } catch (error) {
+    console.error('Turnuva başlatma hatası:', error);
+    res.status(500).json({ error: 'Turnuva başlatılırken bir hata oluştu' });
+  }
+});
+
+// Turnuva eşleşmeleri oluşturma fonksiyonu
+async function createTournamentMatches(participants, timeControl) {
+  try {
+    // Katılımcıları karıştır
+    const shuffledParticipants = [...participants].sort(() => Math.random() - 0.5);
+    
+    // Eşleşmeleri oluştur
+    const matchCount = Math.floor(shuffledParticipants.length / 2);
+    const gameIds = [];
+    
+    for (let i = 0; i < matchCount; i++) {
+      const whitePlayer = shuffledParticipants[i * 2];
+      const blackPlayer = shuffledParticipants[i * 2 + 1];
+      
+      // Yeni oyun belgesi oluştur
+      const newGame = new Game({
+        whitePlayer: whitePlayer,
+        blackPlayer: blackPlayer,
+        timeControl: timeControl,
+        startTime: new Date(),
+        tournamentId: tournament._id
+      });
+      
+      const savedGame = await newGame.save();
+      gameIds.push(savedGame._id);
+    }
+    
+    return { count: matchCount, gameIds };
+  } catch (error) {
+    console.error('Turnuva eşleşmeleri oluşturma hatası:', error);
+    throw error;
+  }
+}
 
 // Ana sayfa ve diğer sayfalar
 app.get('/', (req, res) => {
@@ -565,4 +1008,4 @@ server.listen(PORT, () => {
 });
 
 // Modül dışa aktarımı
-module.exports = { User, Game, createGuestUser };
+module.exports = { User, Game, Tournament, createGuestUser, createFriendInvite };
