@@ -57,7 +57,6 @@ const UserSchema = new mongoose.Schema({
   wins: { type: Number, default: 0 },
   losses: { type: Number, default: 0 },
   draws: { type: Number, default: 0 },
-  isGuest: { type: Boolean, default: false }, // Misafir kullanıcı olup olmadığı
   friendInvites: [{ 
     inviteId: String,
     createdAt: { type: Date, default: Date.now },
@@ -120,32 +119,6 @@ const TournamentSchema = new mongoose.Schema({
 
 const Tournament = mongoose.model('Tournament', TournamentSchema);
 
-// Misafir kullanıcı oluşturma fonksiyonu
-const createGuestUser = async () => {
-  try {
-    const guestUsername = `Misafir_${Math.random().toString(36).substring(2, 10)}`;
-    const guestEmail = `${guestUsername}@turksatranc.com`;
-    const guestPassword = Math.random().toString(36).substring(2, 15);
-    
-    // Parolayı hashle
-    const hashedPassword = await bcrypt.hash(guestPassword, 10);
-    
-    // Misafir kullanıcı oluştur
-    const guestUser = new User({
-      username: guestUsername,
-      email: guestEmail,
-      password: hashedPassword,
-      isGuest: true
-    });
-    
-    await guestUser.save();
-    return guestUser;
-  } catch (error) {
-    console.error('Misafir kullanıcı oluşturma hatası:', error);
-    throw error;
-  }
-};
-
 // Arkadaş daveti oluşturma fonksiyonu
 const createFriendInvite = async (userId, timeControl) => {
   try {
@@ -176,7 +149,6 @@ const gameModule = {
   User,
   Game,
   Tournament,
-  createGuestUser,
   createFriendInvite
 };
 
@@ -233,34 +205,19 @@ app.use(session({
   }
 }));
 
-// Auth middleware - Giriş yapılmamışsa misafir kullanıcı oluştur
+// Auth middleware - Giriş yapılmamışsa giriş sayfasına yönlendir
 const isAuthenticated = async (req, res, next) => {
   console.log("Auth middleware çalıştı, session:", req.session.userId ? "Var" : "Yok");
   
   // Eğer oturum zaten varsa devam et
   if (req.session.userId) {
-    // FIX: Session'a isGuest bilgisini ekle
-    try {
-      if (req.session.isGuest === undefined) {
-        const user = await User.findById(req.session.userId);
-        if (user) {
-          req.session.isGuest = user.isGuest || false;
-          req.session.username = user.username;
-        }
-      }
-    } catch (error) {
-      console.error('Session kullanıcı bilgisi güncelleme hatası:', error);
-    }
-    
     return next();
   }
   
   // API istekleri için 401 hatası döndür
   if (req.path.startsWith('/api/') && 
       req.path !== '/api/giris' && 
-      req.path !== '/api/kayit' && 
-      req.path !== '/api/misafir-giris' && 
-      req.path !== '/api/kullanici') {
+      req.path !== '/api/kayit') {
     
     if (req.xhr || (req.headers.accept && req.headers.accept.indexOf('json') > -1)) {
       return res.status(401).json({ error: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
@@ -275,7 +232,7 @@ const isAuthenticated = async (req, res, next) => {
     return res.redirect('/giris');
   }
   
-  // Ana sayfa veya API dışındaki istekler için devam et
+  // Ana sayfa ve kayıt/giriş sayfaları için devam et
   next();
 };
 
@@ -292,32 +249,6 @@ app.get('/giris', (req, res) => {
 
 app.get('/kayit', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/kayit.html'));
-});
-
-// Misafir giriş API'si
-app.post('/api/misafir-giris', async (req, res) => {
-  try {
-    // Misafir kullanıcı oluştur
-    const guestUser = await createGuestUser();
-    
-    // Oturumu başlat
-    req.session.userId = guestUser._id;
-    req.session.isGuest = true;
-    req.session.username = guestUser.username;
-    
-    res.json({ 
-      success: true, 
-      redirect: '/',
-      user: {
-        username: guestUser.username,
-        elo: guestUser.elo,
-        isGuest: true
-      }
-    });
-  } catch (error) {
-    console.error('Misafir giriş hatası:', error);
-    res.status(500).json({ error: 'Misafir giriş işlemi başarısız oldu' });
-  }
 });
 
 app.post('/api/kayit', async (req, res) => {
@@ -371,7 +302,6 @@ app.post('/api/kayit', async (req, res) => {
     
     // Oturum başlatma
     req.session.userId = newUser._id;
-    req.session.isGuest = false;
     req.session.username = newUser.username;
     
     res.status(201).json({ success: true, redirect: '/' });
@@ -419,13 +349,11 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
     if (req.session.userId) {
       console.log(`Önceki oturum temizleniyor: ${req.session.userId}`);
       req.session.userId = null;
-      req.session.isGuest = null;
       req.session.username = null;
     }
     
     // Yeni oturum başlat
     req.session.userId = user._id;
-    req.session.isGuest = user.isGuest || false;
     req.session.username = user.username;
     
     console.log('Kullanıcı girişi yapıldı:', username, 'Session ID:', req.session.id);
@@ -436,8 +364,7 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
       user: {
         _id: user._id,
         username: user.username,
-        elo: user.elo,
-        isGuest: user.isGuest || false
+        elo: user.elo
       }
     });
   } catch (error) {
@@ -466,33 +393,30 @@ app.get('/profil', isAuthenticated, (req, res) => {
 
 app.get('/api/kullanici', async (req, res) => {
   try {
-    // Session'da userId yoksa misafir kullanıcı olarak işaretle
+    // Session'da userId yoksa giriş sayfasına yönlendir
     if (!req.session.userId) {
-      console.log("Kullanıcı bilgisi isteği: Oturum yok, misafir bilgisi dönülüyor");
-      return res.json({
-        username: 'Misafir',
-        elo: 1200,
-        isGuest: true
+      console.log("Kullanıcı bilgisi isteği: Oturum yok, hata dönülüyor");
+      return res.status(401).json({ 
+        error: 'Lütfen giriş yapın', 
+        redirect: '/giris'
       });
     }
     
-    console.log(`Kullanıcı bilgisi isteniyor, userId: ${req.session.userId}, isGuest: ${req.session.isGuest}`);
+    console.log(`Kullanıcı bilgisi isteniyor, userId: ${req.session.userId}`);
     const user = await User.findById(req.session.userId).select('-password');
     
     if (!user) {
-      console.log("Kullanıcı bulunamadı, misafir bilgisi dönülüyor");
+      console.log("Kullanıcı bulunamadı, hata dönülüyor");
       // Session'da userId var ama kullanıcı bulunamıyorsa session'ı temizle
       req.session.userId = null;
-      req.session.isGuest = null;
       req.session.username = null;
-      return res.json({
-        username: 'Misafir',
-        elo: 1200,
-        isGuest: true
+      return res.status(401).json({
+        error: 'Kullanıcı bulunamadı',
+        redirect: '/giris'
       });
     }
     
-    console.log(`Kullanıcı bilgisi gönderiliyor: ${user.username}, isGuest: ${user.isGuest}`);
+    console.log(`Kullanıcı bilgisi gönderiliyor: ${user.username}`);
     res.json(user);
   } catch (error) {
     console.error('Kullanıcı bilgisi alma hatası:', error);
@@ -539,16 +463,12 @@ app.post('/api/sifre-degistir', isAuthenticated, async (req, res) => {
   }
 });
 
-// ======== YENİ: ARKADAŞ DAVETİ ROTALARI ========
+// ======== ARKADAŞ DAVETİ ROTALARI ========
 
 // Arkadaş daveti oluştur
 app.post('/api/arkadasdaveti/olustur', isAuthenticated, async (req, res) => {
   try {
     const { timeControl } = req.body;
-    
-    if (!req.session.userId || req.session.isGuest) {
-      return res.status(403).json({ error: 'Sadece kayıtlı kullanıcılar arkadaş daveti oluşturabilir' });
-    }
     
     // Geçerli bir süre kontrolü
     const validTimeControl = parseInt(timeControl) || 15;
@@ -616,7 +536,7 @@ app.get('/davet/:inviteId', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/davet.html'));
 });
 
-// ======== YENİ: TURNUVA ROTALARI ========
+// ======== TURNUVA ROTALARI ========
 
 // Turnuva sayfası
 app.get('/turnuvalar', isAuthenticated, (req, res) => {
@@ -652,10 +572,6 @@ app.get('/api/turnuvalar', isAuthenticated, async (req, res) => {
 // Yeni turnuva oluştur
 app.post('/api/turnuvalar', isAuthenticated, async (req, res) => {
   try {
-    if (req.session.isGuest) {
-      return res.status(403).json({ error: 'Sadece kayıtlı kullanıcılar turnuva oluşturabilir' });
-    }
-    
     const { name, description, startTime, maxParticipants, rounds, timeControl } = req.body;
     
     // Doğrulama
@@ -731,241 +647,241 @@ app.get('/api/turnuvalar/:id', isAuthenticated, async (req, res) => {
 
 // Turnuvaya katıl
 app.post('/api/turnuvalar/:id/katil', isAuthenticated, async (req, res) => {
-  try {
-    const tournamentId = req.params.id;
-    
-    const tournament = await Tournament.findById(tournamentId);
-    if (!tournament) {
-      return res.status(404).json({ error: 'Turnuva bulunamadı' });
-    }
-    
-    // Turnuva durumunu kontrol et
-    if (tournament.status !== 'registration') {
-      return res.status(400).json({ error: 'Bu turnuvaya artık kayıt yapılamaz' });
-    }
-    
-    // Katılımcı sayısını kontrol et
-    if (tournament.participants.length >= tournament.maxParticipants) {
-      return res.status(400).json({ error: 'Turnuva kapasitesi dolu' });
-    }
-    
-    // Zaten kayıtlı mı kontrol et
-    if (tournament.participants.some(p => p.toString() === req.session.userId.toString())) {
-      return res.status(400).json({ error: 'Bu turnuvaya zaten kayıtlısınız' });
-    }
-    
-    // Turnuvaya katıl
-    await Tournament.findByIdAndUpdate(tournamentId, {
-      $push: { 
-        participants: req.session.userId,
-        standings: {
-          playerId: req.session.userId,
-          points: 0,
-          gamesPlayed: 0
-        }
-      }
-    });
-    
-    res.json({ 
-      success: true, 
-      message: 'Turnuvaya başarıyla katıldınız'
-    });
-    
-  } catch (error) {
-    console.error('Turnuvaya katılma hatası:', error);
-    res.status(500).json({ error: 'Turnuvaya katılırken bir hata oluştu' });
-  }
+ try {
+   const tournamentId = req.params.id;
+   
+   const tournament = await Tournament.findById(tournamentId);
+   if (!tournament) {
+     return res.status(404).json({ error: 'Turnuva bulunamadı' });
+   }
+   
+   // Turnuva durumunu kontrol et
+   if (tournament.status !== 'registration') {
+     return res.status(400).json({ error: 'Bu turnuvaya artık kayıt yapılamaz' });
+   }
+   
+   // Katılımcı sayısını kontrol et
+   if (tournament.participants.length >= tournament.maxParticipants) {
+     return res.status(400).json({ error: 'Turnuva kapasitesi dolu' });
+   }
+   
+   // Zaten kayıtlı mı kontrol et
+   if (tournament.participants.some(p => p.toString() === req.session.userId.toString())) {
+     return res.status(400).json({ error: 'Bu turnuvaya zaten kayıtlısınız' });
+   }
+   
+   // Turnuvaya katıl
+   await Tournament.findByIdAndUpdate(tournamentId, {
+     $push: { 
+       participants: req.session.userId,
+       standings: {
+         playerId: req.session.userId,
+         points: 0,
+         gamesPlayed: 0
+       }
+     }
+   });
+   
+   res.json({ 
+     success: true, 
+     message: 'Turnuvaya başarıyla katıldınız'
+   });
+   
+ } catch (error) {
+   console.error('Turnuvaya katılma hatası:', error);
+   res.status(500).json({ error: 'Turnuvaya katılırken bir hata oluştu' });
+ }
 });
 
 // Turnuvadan ayrıl
 app.post('/api/turnuvalar/:id/ayril', isAuthenticated, async (req, res) => {
-  try {
-    const tournamentId = req.params.id;
-    
-    const tournament = await Tournament.findById(tournamentId);
-    if (!tournament) {
-      return res.status(404).json({ error: 'Turnuva bulunamadı' });
-    }
-    
-    // Turnuva durumunu kontrol et
-    if (tournament.status !== 'registration') {
-      return res.status(400).json({ error: 'Turnuva başladıktan sonra ayrılamazsınız' });
-    }
-    
-    // Turnuvadan ayrıl
-    await Tournament.findByIdAndUpdate(tournamentId, {
-      $pull: { 
-        participants: req.session.userId,
-        standings: { playerId: req.session.userId }
-      }
-    });
-    
-    res.json({ 
-      success: true, 
-      message: 'Turnuvadan başarıyla ayrıldınız'
-    });
-    
-  } catch (error) {
-    console.error('Turnuvadan ayrılma hatası:', error);
-    res.status(500).json({ error: 'Turnuvadan ayrılırken bir hata oluştu' });
-  }
+ try {
+   const tournamentId = req.params.id;
+   
+   const tournament = await Tournament.findById(tournamentId);
+   if (!tournament) {
+     return res.status(404).json({ error: 'Turnuva bulunamadı' });
+   }
+   
+   // Turnuva durumunu kontrol et
+   if (tournament.status !== 'registration') {
+     return res.status(400).json({ error: 'Turnuva başladıktan sonra ayrılamazsınız' });
+   }
+   
+   // Turnuvadan ayrıl
+   await Tournament.findByIdAndUpdate(tournamentId, {
+     $pull: { 
+       participants: req.session.userId,
+       standings: { playerId: req.session.userId }
+     }
+   });
+   
+   res.json({ 
+     success: true, 
+     message: 'Turnuvadan başarıyla ayrıldınız'
+   });
+   
+ } catch (error) {
+   console.error('Turnuvadan ayrılma hatası:', error);
+   res.status(500).json({ error: 'Turnuvadan ayrılırken bir hata oluştu' });
+ }
 });
 
 // Turnuvayı başlat (sadece turnuva oluşturanı)
 app.post('/api/turnuvalar/:id/baslat', isAuthenticated, async (req, res) => {
-  try {
-    const tournamentId = req.params.id;
-    
-    const tournament = await Tournament.findById(tournamentId);
-    if (!tournament) {
-      return res.status(404).json({ error: 'Turnuva bulunamadı' });
-    }
-    
-    // Yetkiyi kontrol et
-    if (tournament.creator.toString() !== req.session.userId.toString()) {
-      return res.status(403).json({ error: 'Bu işlemi yapmaya yetkiniz yok' });
-    }
-    
-    // Turnuva durumunu kontrol et
-    if (tournament.status !== 'registration') {
-      return res.status(400).json({ error: 'Bu turnuva zaten başlatılmış veya tamamlanmış' });
-    }
-    
-    // Katılımcı sayısını kontrol et (en az 4 oyuncu)
-    if (tournament.participants.length < 4) {
-      return res.status(400).json({ error: 'Turnuva başlatmak için en az 4 katılımcı gerekiyor' });
-    }
-    
-    // Eşleşmeleri oluştur
-    const matches = createTournamentMatches(tournament.participants, tournament.timeControl);
-    
-    // Turnuvayı başlat
-    await Tournament.findByIdAndUpdate(tournamentId, {
-      status: 'inProgress',
-      $set: { games: matches.gameIds }
-    });
-    
-    res.json({ 
-      success: true, 
-      message: 'Turnuva başarıyla başlatıldı',
-      matches: matches.count
-    });
-    
-  } catch (error) {
-    console.error('Turnuva başlatma hatası:', error);
-    res.status(500).json({ error: 'Turnuva başlatılırken bir hata oluştu' });
-  }
+ try {
+   const tournamentId = req.params.id;
+   
+   const tournament = await Tournament.findById(tournamentId);
+   if (!tournament) {
+     return res.status(404).json({ error: 'Turnuva bulunamadı' });
+   }
+   
+   // Yetkiyi kontrol et
+   if (tournament.creator.toString() !== req.session.userId.toString()) {
+     return res.status(403).json({ error: 'Bu işlemi yapmaya yetkiniz yok' });
+   }
+   
+   // Turnuva durumunu kontrol et
+   if (tournament.status !== 'registration') {
+     return res.status(400).json({ error: 'Bu turnuva zaten başlatılmış veya tamamlanmış' });
+   }
+   
+   // Katılımcı sayısını kontrol et (en az 4 oyuncu)
+   if (tournament.participants.length < 4) {
+     return res.status(400).json({ error: 'Turnuva başlatmak için en az 4 katılımcı gerekiyor' });
+   }
+   
+   // Eşleşmeleri oluştur
+   const matches = createTournamentMatches(tournament.participants, tournament.timeControl);
+   
+   // Turnuvayı başlat
+   await Tournament.findByIdAndUpdate(tournamentId, {
+     status: 'inProgress',
+     $set: { games: matches.gameIds }
+   });
+   
+   res.json({ 
+     success: true, 
+     message: 'Turnuva başarıyla başlatıldı',
+     matches: matches.count
+   });
+   
+ } catch (error) {
+   console.error('Turnuva başlatma hatası:', error);
+   res.status(500).json({ error: 'Turnuva başlatılırken bir hata oluştu' });
+ }
 });
 
 // Turnuva eşleşmeleri oluşturma fonksiyonu
 async function createTournamentMatches(participants, timeControl) {
-  try {
-    // Katılımcıları karıştır
-    const shuffledParticipants = [...participants].sort(() => Math.random() - 0.5);
-    
-    // Eşleşmeleri oluştur
-    const matchCount = Math.floor(shuffledParticipants.length / 2);
-    const gameIds = [];
-    
-    for (let i = 0; i < matchCount; i++) {
-      const whitePlayer = shuffledParticipants[i * 2];
-      const blackPlayer = shuffledParticipants[i * 2 + 1];
-      
-      // Yeni oyun belgesi oluştur
-      const newGame = new Game({
-        whitePlayer: whitePlayer,
-        blackPlayer: blackPlayer,
-        timeControl: timeControl,
-        startTime: new Date(),
-        tournamentId: tournament._id
-      });
-      
-      const savedGame = await newGame.save();
-      gameIds.push(savedGame._id);
-    }
-    
-    return { count: matchCount, gameIds };
-  } catch (error) {
-    console.error('Turnuva eşleşmeleri oluşturma hatası:', error);
-    throw error;
-  }
+ try {
+   // Katılımcıları karıştır
+   const shuffledParticipants = [...participants].sort(() => Math.random() - 0.5);
+   
+   // Eşleşmeleri oluştur
+   const matchCount = Math.floor(shuffledParticipants.length / 2);
+   const gameIds = [];
+   
+   for (let i = 0; i < matchCount; i++) {
+     const whitePlayer = shuffledParticipants[i * 2];
+     const blackPlayer = shuffledParticipants[i * 2 + 1];
+     
+     // Yeni oyun belgesi oluştur
+     const newGame = new Game({
+       whitePlayer: whitePlayer,
+       blackPlayer: blackPlayer,
+       timeControl: timeControl,
+       startTime: new Date(),
+       tournamentId: tournament._id
+     });
+     
+     const savedGame = await newGame.save();
+     gameIds.push(savedGame._id);
+   }
+   
+   return { count: matchCount, gameIds };
+ } catch (error) {
+   console.error('Turnuva eşleşmeleri oluşturma hatası:', error);
+   throw error;
+ }
 }
 
 // Ana sayfa ve diğer sayfalar
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+ res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 app.get('/siralama', isAuthenticated, (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/siralama.html'));
+ res.sendFile(path.join(__dirname, '../public/siralama.html'));
 });
 
 app.get('/api/siralama', isAuthenticated, async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-    const searchTerm = req.query.search || '';
-    
-    let query = {};
-    if (searchTerm) {
-      query.username = { $regex: searchTerm, $options: 'i' };
-    }
-    
-    const totalUsers = await User.countDocuments(query);
-    const totalPages = Math.ceil(totalUsers / limit);
-    
-    const users = await User.find(query)
-      .sort({ elo: -1 })
-      .skip(skip)
-      .limit(limit)
-      .select('username elo gamesPlayed wins losses draws');
-    
-    res.json({ 
-      users,
-      pagination: {
-        totalUsers,
-        totalPages,
-        currentPage: page,
-        limit
-      }
-    });
-  } catch (error) {
-    console.error('Sıralama alma hatası:', error);
-    res.status(500).json({ error: 'Sıralama alınırken bir hata oluştu', details: error.message });
-  }
+ try {
+   const page = parseInt(req.query.page) || 1;
+   const limit = parseInt(req.query.limit) || 20;
+   const skip = (page - 1) * limit;
+   const searchTerm = req.query.search || '';
+   
+   let query = {};
+   if (searchTerm) {
+     query.username = { $regex: searchTerm, $options: 'i' };
+   }
+   
+   const totalUsers = await User.countDocuments(query);
+   const totalPages = Math.ceil(totalUsers / limit);
+   
+   const users = await User.find(query)
+     .sort({ elo: -1 })
+     .skip(skip)
+     .limit(limit)
+     .select('username elo gamesPlayed wins losses draws');
+   
+   res.json({ 
+     users,
+     pagination: {
+       totalUsers,
+       totalPages,
+       currentPage: page,
+       limit
+     }
+   });
+ } catch (error) {
+   console.error('Sıralama alma hatası:', error);
+   res.status(500).json({ error: 'Sıralama alınırken bir hata oluştu', details: error.message });
+ }
 });
 
 app.get('/gecmis-oyunlar', isAuthenticated, (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/gecmis-oyunlar.html'));
+ res.sendFile(path.join(__dirname, '../public/gecmis-oyunlar.html'));
 });
 
 app.get('/api/gecmis-oyunlar', isAuthenticated, async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 20;
-    
-    const games = await Game.find({
-      $or: [
-        { whitePlayer: req.session.userId },
-        { blackPlayer: req.session.userId }
-      ],
-      result: { $ne: 'ongoing' }
-    })
-    .sort({ endTime: -1 })
-    .limit(limit)
-    .populate('whitePlayer', 'username')
-    .populate('blackPlayer', 'username');
-    
-    res.json(games);
-  } catch (error) {
-    console.error('Geçmiş oyunlar alma hatası:', error);
-    res.status(500).json({ error: 'Geçmiş oyunlar alınırken bir hata oluştu', details: error.message });
-  }
+ try {
+   const limit = parseInt(req.query.limit) || 20;
+   
+   const games = await Game.find({
+     $or: [
+       { whitePlayer: req.session.userId },
+       { blackPlayer: req.session.userId }
+     ],
+     result: { $ne: 'ongoing' }
+   })
+   .sort({ endTime: -1 })
+   .limit(limit)
+   .populate('whitePlayer', 'username')
+   .populate('blackPlayer', 'username');
+   
+   res.json(games);
+ } catch (error) {
+   console.error('Geçmiş oyunlar alma hatası:', error);
+   res.status(500).json({ error: 'Geçmiş oyunlar alınırken bir hata oluştu', details: error.message });
+ }
 });
 
 // Default route
 app.get('*', (req, res) => {
-  res.redirect('/');
+ res.redirect('/');
 });
 
 // Socket.io bağlantısını kur
@@ -975,37 +891,37 @@ setupSocketIO(io);
 let socketStats = { activeGames: 0, waitingPlayers: 0, userSockets: 0 };
 
 setInterval(() => {
-  console.log("------- SUNUCU DURUMU -------");
-  try {
-    socketStats = require('./socket-handler').getStats();
-  } catch (error) {
-    console.error("İstatistik alma hatası:", error.message);
-  }
-  
-  console.log(`Aktif oyunlar: ${socketStats.activeGames}`);
-  console.log(`Bekleyen oyuncular: ${socketStats.waitingPlayers}`);
-  console.log(`Socket-Kullanıcı eşleşmeleri: ${socketStats.userSockets}`);
-  console.log("-----------------------------");
+ console.log("------- SUNUCU DURUMU -------");
+ try {
+   socketStats = require('./socket-handler').getStats();
+ } catch (error) {
+   console.error("İstatistik alma hatası:", error.message);
+ }
+ 
+ console.log(`Aktif oyunlar: ${socketStats.activeGames}`);
+ console.log(`Bekleyen oyuncular: ${socketStats.waitingPlayers}`);
+ console.log(`Socket-Kullanıcı eşleşmeleri: ${socketStats.userSockets}`);
+ console.log("-----------------------------");
 }, 60000); // Her 1 dakikada bir
 
 // Genel hata yakalama
 process.on('uncaughtException', (err) => {
-  console.error('Yakalanmamış İstisna:', err);
-  // Kritik hatalar oluştuğunda uygulamayı yeniden başlatın
-  if (err.message.includes('FATAL') || err.message.includes('CRITICAL')) {
-    console.error('Kritik hata tespit edildi, uygulama yeniden başlatılıyor...');
-    process.exit(1);
-  }
+ console.error('Yakalanmamış İstisna:', err);
+ // Kritik hatalar oluştuğunda uygulamayı yeniden başlatın
+ if (err.message.includes('FATAL') || err.message.includes('CRITICAL')) {
+   console.error('Kritik hata tespit edildi, uygulama yeniden başlatılıyor...');
+   process.exit(1);
+ }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('İşlenmeyen Reddetme:', reason);
+ console.error('İşlenmeyen Reddetme:', reason);
 });
 
 // Sunucuyu başlat
 server.listen(PORT, () => {
-  console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
+ console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
 });
 
 // Modül dışa aktarımı
-module.exports = { User, Game, Tournament, createGuestUser, createFriendInvite };
+module.exports = { User, Game, Tournament, createFriendInvite };
