@@ -656,6 +656,7 @@ async function loadUserInfo() {
    // Taş animasyonu bittikten sonra tahta pozisyonunu güncelle
    function onSnapEnd() {
        board.position(game.fen());
+       highlightLastMove();
    }
    
    // Eşleşme bul
