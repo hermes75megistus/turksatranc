@@ -91,36 +91,73 @@
                 const email = $('#email').val();
                 const password = $('#password').val();
                 const passwordConfirm = $('#passwordConfirm').val();
+                const terms = $('#terms').is(':checked');
                 
-                // Parolaların eşleşip eşleşmediğini kontrol et
+                // Basit doğrulama kontrolleri
+                if (!username || !email || !password || !passwordConfirm) {
+                    $('#error-message').show().text('Lütfen tüm alanları doldurun.');
+                    return;
+                }
+                
                 if (password !== passwordConfirm) {
                     $('#error-message').show().text('Parolalar eşleşmiyor.');
+                    return;
+                }
+                
+                if (!terms) {
+                    $('#error-message').show().text('Kullanım koşullarını kabul etmelisiniz.');
                     return;
                 }
                 
                 // Hata mesajını temizle
                 $('#error-message').hide().text('');
                 
+                // Form elemanlarını devre dışı bırak
+                const submitBtn = $(this).find('button[type="submit"]');
+                const originalBtnText = submitBtn.html();
+                submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Kayıt Oluşturuluyor...').prop('disabled', true);
+                
                 // API'ye kayıt isteği gönder
                 $.ajax({
                     url: '/api/kayit',
                     type: 'POST',
                     contentType: 'application/json',
-                    data: JSON.stringify({ username, email, password, passwordConfirm }),
+                    data: JSON.stringify({ 
+                        username, 
+                        email, 
+                        password, 
+                        passwordConfirm 
+                    }),
                     success: function(response) {
                         if (response.success) {
                             window.location.href = response.redirect || '/';
                         } else {
+                            submitBtn.html(originalBtnText).prop('disabled', false);
                             $('#error-message').show().text(response.error || 'Kayıt sırasında bir hata oluştu.');
                         }
                     },
                     error: function(xhr) {
-                        const errorMsg = xhr.responseJSON && xhr.responseJSON.error 
-                            ? xhr.responseJSON.error 
-                            : 'Kayıt sırasında bir hata oluştu.';
+                        submitBtn.html(originalBtnText).prop('disabled', false);
+                        
+                        let errorMsg = 'Kayıt sırasında bir hata oluştu.';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
+                        }
+                        
                         $('#error-message').show().text(errorMsg);
                     }
                 });
+            });
+            
+            // Basit form doğrulamaları
+            $('#password, #passwordConfirm').on('keyup', function() {
+                if ($('#password').val() && $('#passwordConfirm').val()) {
+                    if ($('#password').val() !== $('#passwordConfirm').val()) {
+                        $('#passwordConfirm').css('border-color', '#c81912');
+                    } else {
+                        $('#passwordConfirm').css('border-color', '#3CB371');
+                    }
+                }
             });
         });
     </script>
