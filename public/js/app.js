@@ -486,7 +486,7 @@ async function loadUserInfo() {
        chatMessages.scrollTop = chatMessages.scrollHeight;
    }
    
-   // Satranç tahtasını başlat
+// Satranç tahtasını başlat
 function initializeBoard(orientation = 'white') {
     // Tahta yapılandırması
     const config = {
@@ -510,7 +510,12 @@ function initializeBoard(orientation = 'white') {
     const boardElement = document.getElementById('board');
     if (boardElement) {
         boardElement.addEventListener('touchmove', function(e) {
-            if (e.target.closest('.square-55d63') || e.target.tag
+            if (e.target.closest('.square-55d63') || e.target.tagName === 'IMG') {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    }
+}
 
    
    // Süreyi biçimlendir (mm:ss)
