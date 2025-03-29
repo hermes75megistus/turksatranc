@@ -16,7 +16,7 @@ module.exports = function(gameModule) {
     createFriendInvite = gameModule.createFriendInvite;
   }
 
-  // İstatistikleri döndüren fonksiyon
+// İstatistikleri döndüren fonksiyon
   const getStats = () => {
     return {
       activeGames: activeGames.size,
@@ -24,6 +24,9 @@ module.exports = function(gameModule) {
       userSockets: userSockets.size
     };
   };
+  
+  // Module exports for stats
+  module.exports.getStats = getStats;
 
   // Socket.io kurulumu
   const setupSocketIO = (io) => {
