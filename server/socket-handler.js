@@ -42,45 +42,63 @@ module.exports = function(gameModule) {
       }
     }
 
-    // Socket kimlik doğrulama için middleware
-    io.use(async (socket, next) => {
+   // Socket kimlik doğrulama için middleware
+io.use(async (socket, next) => {
+  try {
+    // Session verilerine eriş
+    const session = socket.request.session;
+    console.log('Socket session:', session ? 'Var' : 'Yok');
+    
+    // Oturum session middleware ile paylaşıldığında
+    if (session && session.userId) {
+      // Session'dan userId kullan
+      socket.userId = session.userId;
+      socket.username = session.username;
+      
       try {
-        // Session ve cookie bilgilerini kontrol et
-        const cookies = socket.handshake.headers.cookie;
-        console.log('Socket bağlantısı - cookies:', cookies ? 'Var' : 'Yok');
-        
-        // Auth bilgilerini kontrol et
-        const sessionId = socket.handshake.auth.sessionId;
-        const userId = socket.handshake.auth.userId;
-        
-        console.log(`Socket kimlik doğrulama bilgileri: sessionId=${sessionId ? 'Var' : 'Yok'}, userId=${userId || 'Yok'}`);
-        
-        // UserId varsa ve geçerliyse bu kullanıcıyı kullan
-        if (userId) {
-          try {
-            const user = await User.findById(userId);
-            if (user) {
-              socket.userId = user._id;
-              socket.username = user.username;
-              
-              console.log(`Kullanıcı doğrulandı: ${user.username} (${user._id})`);
-              
-              // Socket ID ile kullanıcı eşleştir
-              userSockets.set(user._id.toString(), socket.id);
-              return next();
-            }
-          } catch (userError) {
-            console.error('Kullanıcı doğrulama hatası:', userError);
-          }
+        // Kullanıcıyı doğrula
+        const user = await User.findById(session.userId);
+        if (user) {
+          console.log(`Session ile doğrulandı: ${user.username} (${user._id})`);
+          // Socket ID ile kullanıcı eşleştir
+          userSockets.set(user._id.toString(), socket.id);
+          return next();
         }
-        
-        // Kimlik doğrulaması başarısız, oturum açılması gerekiyor
-        return next(new Error('authentication_error'));
-      } catch (error) {
-        console.error('Socket kimlik doğrulama hatası:', error);
-        return next(new Error('Kimlik doğrulama hatası'));
+      } catch (sessionError) {
+        console.error('Session doğrulama hatası:', sessionError);
       }
-    });
+    }
+    
+    // Session'dan kimlik doğrulanmadıysa, auth objesine bak
+    const userId = socket.handshake.auth.userId;
+    console.log(`Auth ile doğrulama deneniyor, userId: ${userId || 'Yok'}`);
+    
+    // UserId varsa ve geçerliyse bu kullanıcıyı kullan
+    if (userId) {
+      try {
+        const user = await User.findById(userId);
+        if (user) {
+          socket.userId = user._id;
+          socket.username = user.username;
+          
+          console.log(`Auth ile doğrulandı: ${user.username} (${user._id})`);
+          
+          // Socket ID ile kullanıcı eşleştir
+          userSockets.set(user._id.toString(), socket.id);
+          return next();
+        }
+      } catch (userError) {
+        console.error('Kullanıcı doğrulama hatası:', userError);
+      }
+    }
+    
+    // Kimlik doğrulaması başarısız, oturum açılması gerekiyor
+    return next(new Error('authentication_error'));
+  } catch (error) {
+    console.error('Socket kimlik doğrulama hatası:', error);
+    return next(new Error('Kimlik doğrulama hatası'));
+  }
+});
 
     io.on('connection', async (socket) => {
       console.log(`Yeni socket bağlantısı: ${socket.id}, Kullanıcı: ${socket.username || 'Bilinmiyor'}, UserId: ${socket.userId || 'Yok'}`);
