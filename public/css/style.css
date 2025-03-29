@@ -53,6 +53,156 @@ img {
     height: auto;
 }
 
+/* Responsive Header Styles */
+.main-header {
+    background-color: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 15px 0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 1000; /* Diğer içeriklerin üzerinde olması için */
+}
+
+.main-header .container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+/* Logo Stili */
+.logo {
+    flex: 0 0 auto;
+    margin-right: 20px;
+}
+
+.logo a {
+    display: flex;
+    align-items: center;
+    color: #c81912;
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.logo img {
+    height: 40px;
+    width: auto;
+    margin-right: 10px;
+}
+
+.logo span {
+    font-family: 'Kaushan Script', cursive;
+    font-size: 1.8rem;
+}
+
+/* Ana Navigasyon */
+.main-nav {
+    flex: 1 1 auto;
+    display: flex;
+    justify-content: center;
+}
+
+.main-nav ul {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+}
+
+.main-nav li {
+    list-style: none;
+}
+
+.main-nav a {
+    display: flex;
+    align-items: center;
+    color: #444;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.main-nav a i {
+    margin-right: 8px;
+}
+
+.main-nav a:hover, .main-nav a.active {
+    color: #c81912;
+    background-color: rgba(200, 25, 18, 0.1);
+}
+
+/* Kullanıcı Kontrolleri */
+.user-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 0 0 auto;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#username-display {
+    font-weight: 500;
+}
+
+#elo-display {
+    background-color: #c81912;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+#auth-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* Hamburger Menü Icon */
+.hamburger-menu {
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 30px;
+    height: 21px;
+    cursor: pointer;
+    padding: 0;
+    background: transparent;
+    border: none;
+}
+
+.hamburger-menu span {
+    display: block;
+    height: 3px;
+    width: 100%;
+    background-color: #c81912;
+    border-radius: 3px;
+    transition: all 0.3s ease;
+}
+
+/* Hamburger Menu Active State */
+.hamburger-menu.active span:nth-child(1) {
+    transform: translateY(9px) rotate(45deg);
+}
+
+.hamburger-menu.active span:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger-menu.active span:nth-child(3) {
+    transform: translateY(-9px) rotate(-45deg);
+}
+
 /* Türk Desenli Arka Planlar */
 .turkish-pattern {
     background-color: #fff;
@@ -104,87 +254,6 @@ img {
 .turkish-pattern-light > * {
     position: relative;
     z-index: 1;
-}
-
-/* Header ve Navigasyon */
-.main-header {
-    background-color: #fff;
-    border-bottom: 1px solid #e0e0e0;
-    padding: 15px 0;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.main-header .container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.logo a {
-    display: flex;
-    align-items: center;
-    color: #c81912;
-    font-weight: bold;
-    font-size: 1.5rem;
-}
-
-.logo img {
-    height: 40px;
-    margin-right: 10px;
-}
-
-.logo span {
-    font-family: 'Kaushan Script', cursive;
-    font-size: 1.8rem;
-}
-
-.main-nav ul {
-    display: flex;
-    gap: 20px;
-}
-
-.main-nav a {
-    display: flex;
-    align-items: center;
-    color: #444;
-    font-weight: 500;
-    padding: 8px 12px;
-    border-radius: 5px;
-    transition: all 0.3s ease;
-}
-
-.main-nav a i {
-    margin-right: 8px;
-}
-
-.main-nav a:hover, .main-nav a.active {
-    color: #c81912;
-    background-color: rgba(200, 25, 18, 0.1);
-}
-
-.user-controls {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-#username-display {
-    font-weight: 500;
-}
-
-#elo-display {
-    background-color: #c81912;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
 }
 
 /* Butonlar */
@@ -294,6 +363,7 @@ img {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s ease;
+    text-align: center;
 }
 
 .time-option:hover {
@@ -381,16 +451,24 @@ img {
 .board-section {
     flex: 3;
     padding-right: 20px;
-    width: 800px; /* Eklenen satır */
-    max-width: 650px; /* Eklenen satır */
-    margin: 0 auto; /* Eklenen satır */
-
+    min-width: 0; /* Taşma problemini çözer */
+    max-width: 650px; /* Maksimum genişlik */
+    margin: 0 auto;
 }
 
 #board-container {
     width: 100%;
     max-width: 100%;
     margin: 0 auto 20px;
+    aspect-ratio: 1 / 1; /* Kare boy-en oranını koru */
+}
+
+/* Tahta responsive boyutlandırma */
+#board {
+    width: 100% !important;
+    height: auto !important;
+    max-width: 600px;
+    margin: 0 auto;
 }
 
 .game-controls {
@@ -408,7 +486,8 @@ img {
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
-    min-height: 500px;
+    min-height: 400px; /* Sabit yükseklik */
+    max-height: 600px; /* Maksimum yükseklik */
 }
 
 .tabs {
@@ -451,6 +530,7 @@ img {
     padding: 15px;
     flex-grow: 1;
     overflow-y: auto;
+    height: calc(100% - 52px); /* Sekme yüksekliğini çıkar */
 }
 
 .tab-content.active {
@@ -551,6 +631,706 @@ img {
     font-size: 1.5rem;
     cursor: pointer;
     color: #888;
+}
+
+.no-game-selected i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: #c81912;
+}
+
+.game-players {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.player-detail {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+}
+
+.white-piece {
+    color: #fff;
+    background-color: #333;
+    padding: 5px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.black-piece {
+    color: #333;
+    background-color: #f0f0f0;
+    padding: 5px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.game-result-indicator {
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #c81912;
+}
+
+.game-meta {
+    display: flex;
+    justify-content: space-between;
+    background-color: #f8f8f8;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    color: #666;
+}
+
+.meta-item i {
+    margin-right: 8px;
+    color: #c81912;
+}
+
+#game-board-container {
+    margin-bottom: 20px;
+    aspect-ratio: 1 / 1;
+}
+
+.game-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.control-btn {
+    padding: 8px 12px;
+    background-color: #f0f0f0;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.control-btn:hover {
+    background-color: #ddd;
+}
+
+#replay-speed {
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f8f8f8;
+}
+
+.moves-history {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border: 1px solid #eee;
+    border-radius: 5px;
+}
+
+.game-actions {
+    display: flex;
+    gap: 15px;
+}
+
+.game-actions button {
+    flex: 1;
+}
+
+.share-link-container {
+    display: flex;
+    margin: 20px 0;
+}
+
+.share-link-container input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px 0 0 5px;
+    border-right: none;
+}
+
+.share-link-container button {
+    border-radius: 0 5px 5px 0;
+    padding: 10px 15px;
+}
+
+.social-share {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.social-share-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #f0f0f0;
+    color: #333;
+    transition: all 0.3s ease;
+}
+
+.social-share-btn:hover {
+    transform: translateY(-3px);
+}
+
+.social-share-btn i {
+    margin-right: 8px;
+}
+
+#share-facebook:hover {
+    background-color: #3b5998;
+    color: white;
+}
+
+#share-twitter:hover {
+    background-color: #1da1f2;
+    color: white;
+}
+
+#share-whatsapp:hover {
+    background-color: #25d366;
+    color: white;
+}
+
+/* Authentication Pages */
+.auth-page {
+    background-color: #f5f5f5;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.auth-container {
+    display: flex;
+    width: 100%;
+    max-width: 1000px;
+    min-height: 600px;
+    background-color: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+}
+
+.auth-left {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    position: relative;
+}
+
+.auth-brand {
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+.auth-brand img {
+    width: 100px;
+    margin-bottom: 20px;
+}
+
+.auth-brand h1 {
+    font-family: 'Kaushan Script', cursive;
+    font-size: 2.5rem;
+    color: #c81912;
+    margin-bottom: 15px;
+}
+
+.auth-brand p {
+    color: #333;
+    font-size: 1.1rem;
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+.auth-right {
+    flex: 1;
+    background-color: #fff;
+    padding: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.auth-form-container {
+    width: 100%;
+}
+
+.auth-form-container h2 {
+    font-size: 2rem;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.auth-subtitle {
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.auth-form {
+    width: 100%;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+    font-weight: 500;
+}
+
+.input-with-icon {
+    position: relative;
+}
+
+.input-with-icon i {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #aaa;
+}
+
+.input-with-icon input {
+    width: 100%;
+    padding: 12px 15px 12px 45px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.input-with-icon input:focus {
+    border-color: #c81912;
+    outline: none;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-group input {
+    margin-right: 10px;
+}
+
+.checkbox-group label {
+    margin-bottom: 0;
+    font-weight: 400;
+}
+
+.auth-btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.1rem;
+    margin-top: 20px;
+}
+
+.auth-links {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.auth-links p {
+    margin-bottom: 10px;
+    color: #666;
+}
+
+.error-message {
+    background-color: #fee;
+    color: #c81912;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+/* Responsive Design - Mobil Destekli */
+@media (max-width: 1200px) {
+    .container {
+        max-width: 960px;
+    }
+    
+    .profile-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .main-content {
+        gap: 15px;
+    }
+}
+
+@media (max-width: 1000px) {
+    .container {
+        max-width: 720px;
+    }
+    
+    .board-section {
+        padding-right: 0;
+    }
+    
+    .profile-container, .games-history-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .game-view {
+        position: static;
+    }
+    
+    .auth-container {
+        flex-direction: column;
+        min-height: auto;
+    }
+    
+    .auth-left {
+        display: none;
+    }
+    
+    .auth-right {
+        padding: 30px 20px;
+    }
+    
+    .game-meta {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 900px) {
+    .main-header .container {
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+    
+    .main-nav {
+        order: 3;
+        flex-basis: 100%;
+        margin-top: 15px;
+    }
+    
+    .user-controls {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        max-width: 540px;
+    }
+    
+    /* Hamburger menü gösterme için */
+    .hamburger-menu {
+        display: flex;
+        z-index: 100;
+    }
+    
+    .main-nav {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: white;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        padding: 10px 0;
+        margin-top: 0;
+        z-index: 99;
+    }
+    
+    .main-nav.active {
+        display: block;
+    }
+    
+    .main-nav ul {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+    }
+    
+    .main-nav li {
+        width: 100%;
+    }
+    
+    .main-nav a {
+        display: flex;
+        justify-content: center;
+        padding: 12px 15px;
+        width: 100%;
+    }
+    
+    /* Diğer düzenlemeler */
+    .main-content {
+        flex-direction: column;
+    }
+    
+    .board-section, .side-panel {
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 20px;
+    }
+    
+    .side-panel {
+        min-height: 300px;
+    }
+    
+    .user-info {
+        flex-direction: column;
+        align-items: flex-end;
+    }
+    
+    #auth-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .profile-avatar {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+    
+    .profile-actions {
+        flex-direction: column;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        gap: 20px;
+        text-align: center;
+    }
+    
+    .time-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .game-players {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .game-result-indicator {
+        margin: 10px 0;
+    }
+    
+    .game-controls {
+        flex-wrap: wrap;
+    }
+    
+    .social-share {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        width: 100%;
+        padding: 0 15px;
+    }
+    
+    .panel {
+        padding: 20px;
+    }
+    
+    .game-container {
+        border-radius: 0;
+    }
+    
+    .player-info {
+        padding: 10px;
+    }
+    
+    .profile-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .win-rate-stats {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .ranking-table th, .ranking-table td {
+        padding: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .game-actions {
+        flex-direction: column;
+    }
+    
+    .auth-form-container h2 {
+        font-size: 1.8rem;
+    }
+    
+    .game-time-control {
+        display: none;
+    }
+}
+
+/* Dokunmatik Cihazlar için İyileştirmeler */
+@media (hover: none) {
+    .btn:hover, .time-option:hover, .tab-btn:hover, .game-history-item:hover, .game-item:hover {
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .btn:active, .time-option:active, .tab-btn:active, .game-history-item:active, .game-item:active {
+        transform: scale(0.98);
+    }
+    
+    .control-btn {
+        padding: 10px 15px; /* Dokunmatik için daha büyük butonlar */
+    }
+}
+
+/* Yüksek Çözünürlüklü Telefon Ekranları için İyileştirmeler */
+@media (max-width: 428px) {
+    .page-title h1 {
+        font-size: 1.8rem;
+    }
+    
+    .board-section {
+        padding: 10px;
+    }
+    
+    .tab-btn {
+        padding: 10px;
+        font-size: 0.9rem;
+    }
+    
+    .tab-btn i {
+        margin-right: 5px;
+    }
+    
+    .auth-form-container h2 {
+        font-size: 1.6rem;
+    }
+    
+    .auth-subtitle {
+        font-size: 0.9rem;
+    }
+    
+    .input-with-icon input {
+        padding: 10px 10px 10px 40px;
+    }
+    
+    .auth-btn {
+        padding: 12px;
+    }
+    
+    .game-meta .meta-item {
+        font-size: 0.9rem;
+    }
+}
+
+/* Çok Küçük Ekranlar için İyileştirmeler */
+@media (max-width: 320px) {
+    .main-nav a {
+        padding: 4px 6px;
+        font-size: 0.75rem;
+    }
+    
+    .time-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .page-title h1 {
+        font-size: 1.5rem;
+    }
+    
+    .status-message {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+    
+    .game-controls {
+        gap: 5px;
+    }
+    
+    .control-btn {
+        padding: 8px;
+    }
+}
+
+/* Safari için Özel Düzeltmeler */
+@supports (-webkit-touch-callout: none) {
+    .auth-container {
+        min-height: -webkit-fill-available;
+    }
+    
+    .site-wrapper {
+        min-height: -webkit-fill-available;
+    }
+}
+
+/* Gradient stilleri */
+.primary-btn {
+    background: linear-gradient(135deg, #c81912 0%, #e63028 100%);
+    transition: all 0.3s ease;
+}
+
+.primary-btn:hover {
+    background: linear-gradient(135deg, #e63028 0%, #f24a3f 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(200, 25, 18, 0.4);
+}
+
+.secondary-btn {
+    background: linear-gradient(135deg, #333 0%, #555 100%);
+    transition: all 0.3s ease;
+}
+
+.secondary-btn:hover {
+    background: linear-gradient(135deg, #444 0%, #666 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.site-wrapper {
+    background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+}
+
+.main-header {
+    background: linear-gradient(to right, #fff, #f8f8f8);
+}
+
+.main-footer {
+    background: linear-gradient(to right, #222, #333);
+}
+
+.turkish-pattern::before {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.time-option.selected {
+    background: linear-gradient(135deg, #c81912 0%, #e63028 100%);
+    border-color: #c81912;
+}
+
+.main-nav a:hover, .main-nav a.active {
+    background: linear-gradient(135deg, rgba(200, 25, 18, 0.1) 0%, rgba(200, 25, 18, 0.2) 100%);
+}
     transition: color 0.3s ease;
 }
 
@@ -1122,609 +1902,3 @@ img {
     justify-content: center;
     height: 300px;
     color: #888;
-}
-
-.no-game-selected i {
-    font-size: 3rem;
-    margin-bottom: 15px;
-    color: #c81912;
-}
-
-.game-players {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.player-detail {
-    display: flex;
-    align-items: center;
-    font-weight: 500;
-}
-
-.white-piece {
-    color: #fff;
-    background-color: #333;
-    padding: 5px;
-    border-radius: 50%;
-    margin-right: 8px;
-}
-
-.black-piece {
-    color: #333;
-    background-color: #f0f0f0;
-    padding: 5px;
-    border-radius: 50%;
-    margin-right: 8px;
-}
-
-.game-result-indicator {
-    font-weight: bold;
-    font-size: 1.2rem;
-    color: #c81912;
-}
-
-.game-meta {
-    display: flex;
-    justify-content: space-between;
-    background-color: #f8f8f8;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-}
-
-.meta-item {
-    display: flex;
-    align-items: center;
-    color: #666;
-}
-
-.meta-item i {
-    margin-right: 8px;
-    color: #c81912;
-}
-
-#game-board-container {
-    margin-bottom: 20px;
-}
-
-.game-controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.control-btn {
-    padding: 8px 12px;
-    background-color: #f0f0f0;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.control-btn:hover {
-    background-color: #ddd;
-}
-
-#replay-speed {
-    padding: 6px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    background-color: #f8f8f8;
-}
-
-.moves-history {
-    max-height: 200px;
-    overflow-y: auto;
-    margin-bottom: 20px;
-    border: 1px solid #eee;
-    border-radius: 5px;
-}
-
-.game-actions {
-    display: flex;
-    gap: 15px;
-}
-
-.game-actions button {
-    flex: 1;
-}
-
-.share-link-container {
-    display: flex;
-    margin: 20px 0;
-}
-
-.share-link-container input {
-    flex: 1;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 5px 0 0 5px;
-    border-right: none;
-}
-
-.share-link-container button {
-    border-radius: 0 5px 5px 0;
-    padding: 10px 15px;
-}
-
-.social-share {
-    display: flex;
-    gap: 15px;
-    margin-top: 20px;
-}
-
-.social-share-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px;
-    border-radius: 5px;
-    background-color: #f0f0f0;
-    color: #333;
-    transition: all 0.3s ease;
-}
-
-.social-share-btn:hover {
-    transform: translateY(-3px);
-}
-
-.social-share-btn i {
-    margin-right: 8px;
-}
-
-#share-facebook:hover {
-    background-color: #3b5998;
-    color: white;
-}
-
-#share-twitter:hover {
-    background-color: #1da1f2;
-    color: white;
-}
-
-#share-whatsapp:hover {
-    background-color: #25d366;
-    color: white;
-}
-
-/* Authentication Pages */
-.auth-page {
-    background-color: #f5f5f5;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-
-.auth-container {
-    display: flex;
-    width: 100%;
-    max-width: 1000px;
-    min-height: 600px;
-    background-color: #fff;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-}
-
-.auth-left {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-    position: relative;
-}
-
-.auth-brand {
-    text-align: center;
-    position: relative;
-    z-index: 1;
-}
-
-.auth-brand img {
-    width: 100px;
-    margin-bottom: 20px;
-}
-
-.auth-brand h1 {
-    font-family: 'Kaushan Script', cursive;
-    font-size: 2.5rem;
-    color: #c81912;
-    margin-bottom: 15px;
-}
-
-.auth-brand p {
-    color: #333;
-    font-size: 1.1rem;
-    max-width: 300px;
-    margin: 0 auto;
-}
-
-.auth-right {
-    flex: 1;
-    background-color: #fff;
-    padding: 40px;
-    display: flex;
-    align-items: center;
-}
-
-.auth-form-container {
-    width: 100%;
-}
-
-.auth-form-container h2 {
-    font-size: 2rem;
-    color: #333;
-    margin-bottom: 10px;
-}
-
-.auth-subtitle {
-    color: #666;
-    margin-bottom: 30px;
-}
-
-.auth-form {
-    width: 100%;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    color: #555;
-    font-weight: 500;
-}
-
-.input-with-icon {
-    position: relative;
-}
-
-.input-with-icon i {
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #aaa;
-}
-
-.input-with-icon input {
-    width: 100%;
-    padding: 12px 15px 12px 45px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-size: 1rem;
-    transition: border-color 0.3s ease;
-}
-
-.input-with-icon input:focus {
-    border-color: #c81912;
-    outline: none;
-}
-
-.checkbox-group {
-    display: flex;
-    align-items: center;
-}
-
-.checkbox-group input {
-    margin-right: 10px;
-}
-
-.checkbox-group label {
-    margin-bottom: 0;
-    font-weight: 400;
-}
-
-.auth-btn {
-    width: 100%;
-    padding: 15px;
-    font-size: 1.1rem;
-    margin-top: 20px;
-}
-
-.auth-links {
-    margin-top: 30px;
-    text-align: center;
-}
-
-.auth-links p {
-    margin-bottom: 10px;
-    color: #666;
-}
-
-.error-message {
-    background-color: #fee;
-    color: #c81912;
-    padding: 10px 15px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-    font-weight: 500;
-}
-
-/* Responsive Design - Gelişmiş Mobil Desteği */
-@media (max-width: 1200px) {
-    .container {
-        max-width: 960px;
-    }
-    
-    .profile-stats {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-    }
-}
-
-@media (max-width: 1000px) {
-    .container {
-        max-width: 720px;
-    }
-    
-    .main-content, .profile-container, .games-history-container {
-        flex-direction: column;
-        grid-template-columns: 1fr;
-    }
-    
-    .board-section, .side-panel {
-        padding-right: 0;
-        margin-bottom: 20px;
-        width: 100%;
-        max-width: 100%;
-    }
-    
-    .side-panel {
-        min-height: 300px;
-    }
-    
-    .game-view {
-        position: static;
-    }
-    
-    .auth-container {
-        flex-direction: column;
-        min-height: auto;
-    }
-    
-    .auth-left {
-        display: none;
-    }
-    
-    .auth-right {
-        padding: 30px 20px;
-    }
-    
-    .game-meta {
-        flex-direction: column;
-        gap: 10px;
-    }
-}
-
-@media (max-width: 768px) {
-    .container {
-        max-width: 540px;
-    }
-    
-    .main-header .container {
-        flex-direction: column;
-        gap: 15px;
-    }
-    
-    .main-nav ul {
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-    
-    .main-nav a {
-        font-size: 0.9rem;
-        padding: 6px 10px;
-    }
-    
-    .user-controls {
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-    
-    .profile-header {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .profile-avatar {
-        margin-right: 0;
-        margin-bottom: 15px;
-    }
-    
-    .profile-actions {
-        flex-direction: column;
-    }
-    
-    .footer-content {
-        flex-direction: column;
-        gap: 20px;
-        text-align: center;
-    }
-    
-    .time-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .game-players {
-        flex-direction: column;
-        gap: 10px;
-    }
-    
-    .game-result-indicator {
-        margin: 10px 0;
-    }
-    
-    .game-controls {
-        flex-wrap: wrap;
-    }
-    
-    .social-share {
-        flex-direction: column;
-    }
-}
-
-@media (max-width: 576px) {
-    .container {
-        width: 100%;
-        padding: 0 15px;
-    }
-    
-    .panel {
-        padding: 20px;
-    }
-    
-    .main-nav ul {
-        gap: 5px;
-    }
-    
-    .main-nav a {
-        font-size: 0.8rem;
-        padding: 5px 8px;
-    }
-    
-    .main-nav a i {
-        margin-right: 5px;
-    }
-    
-    .game-container {
-        border-radius: 0;
-    }
-    
-    .player-info {
-        padding: 10px;
-    }
-    
-    .profile-stats {
-        grid-template-columns: 1fr;
-    }
-    
-    .win-rate-stats {
-        flex-direction: column;
-        gap: 5px;
-    }
-    
-    .ranking-table th, .ranking-table td {
-        padding: 8px;
-        font-size: 0.9rem;
-    }
-    
-    .game-actions {
-        flex-direction: column;
-    }
-    
-    .auth-form-container h2 {
-        font-size: 1.8rem;
-    }
-    
-    .game-time-control {
-        display: none;
-    }
-}
-
-/* Dokunmatik Cihazlar için İyileştirmeler */
-@media (hover: none) {
-    .btn:hover, .time-option:hover, .tab-btn:hover, .game-history-item:hover, .game-item:hover {
-        transform: none;
-        box-shadow: none;
-    }
-    
-    .btn:active, .time-option:active, .tab-btn:active, .game-history-item:active, .game-item:active {
-        transform: scale(0.98);
-    }
-    
-    .control-btn {
-        padding: 10px 15px; /* Dokunmatik için daha büyük butonlar */
-    }
-}
-
-/* Yüksek Çözünürlüklü Telefon Ekranları için İyileştirmeler */
-@media (max-width: 428px) {
-    .page-title h1 {
-        font-size: 1.8rem;
-    }
-    
-    .board-section {
-        padding: 10px;
-    }
-    
-    .tab-btn {
-        padding: 10px;
-        font-size: 0.9rem;
-    }
-    
-    .tab-btn i {
-        margin-right: 5px;
-    }
-    
-    .auth-form-container h2 {
-        font-size: 1.6rem;
-    }
-    
-    .auth-subtitle {
-        font-size: 0.9rem;
-    }
-    
-    .input-with-icon input {
-        padding: 10px 10px 10px 40px;
-    }
-    
-    .auth-btn {
-        padding: 12px;
-    }
-    
-    .game-meta .meta-item {
-        font-size: 0.9rem;
-    }
-}
-
-/* Çok Küçük Ekranlar için İyileştirmeler */
-@media (max-width: 320px) {
-    .main-nav a {
-        padding: 4px 6px;
-        font-size: 0.75rem;
-    }
-    
-    .time-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .page-title h1 {
-        font-size: 1.5rem;
-    }
-    
-    .status-message {
-        font-size: 0.9rem;
-        padding: 8px 12px;
-    }
-    
-    .game-controls {
-        gap: 5px;
-    }
-    
-    .control-btn {
-        padding: 8px;
-    }
-}
-
-/* Safari için Özel Düzeltmeler */
-@supports (-webkit-touch-callout: none) {
-    .auth-container {
-        min-height: -webkit-fill-available;
-    }
-    
-    .site-wrapper {
-        min-height: -webkit-fill-available;
-    }
-}
