@@ -25,8 +25,8 @@ INSTALL_DIR="/var/www/turksatranc"
 # Ana dizin oluştur (eğer yoksa)
 if [ ! -d "$INSTALL_DIR" ]; then
   echo -e "${YELLOW}Ana dizin oluşturuluyor: $INSTALL_DIR${NC}"
-  mkdir -p $INSTALL_DIR/{public,server,config/{nginx,scripts,pm2},logs}
-  mkdir -p $INSTALL_DIR/public/img/chesspieces/wikipedia
+  mkdir -p $INSTALL_DIR/{public,server,config/{nginx,scripts,pm2},logs,backups}
+  mkdir -p $INSTALL_DIR/public/{css,js,img/chesspieces/wikipedia}
 fi
 
 cd $INSTALL_DIR
@@ -78,6 +78,15 @@ else
   echo -e "${GREEN}Nginx kurulu.${NC}"
 fi
 
+# ImageMagick kurulu mu kontrol et (görseller için)
+if ! [ -x "$(command -v convert)" ]; then
+  echo -e "${YELLOW}ImageMagick kuruluyor...${NC}"
+  apt update
+  apt install -y imagemagick
+else
+  echo -e "${GREEN}ImageMagick kurulu.${NC}"
+fi
+
 # .env dosyası oluştur
 echo -e "${YELLOW}.env dosyası oluşturuluyor...${NC}"
 cat > $INSTALL_DIR/.env << 'EOF'
@@ -90,6 +99,7 @@ SESSION_SECRET=turksatranc-super-secure-session-key-2025
 # Server Configuration
 PORT=5000
 NODE_ENV=production
+BASE_URL=http://turksatranc.com
 EOF
 
 # package.json oluşturma
@@ -113,7 +123,8 @@ cat > $INSTALL_DIR/package.json << 'EOF'
     "express": "^4.17.1",
     "express-session": "^1.17.2",
     "mongoose": "^6.0.12",
-    "socket.io": "^4.4.0"
+    "socket.io": "^4.4.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.15"
@@ -348,8 +359,8 @@ module.exports = {
   apps: [{
     name: "turksatranc",
     script: "server/server.js",
-    instances: "max",
-    exec_mode: "cluster",
+    instances: 1,
+    exec_mode: "fork",
     watch: false,
     max_memory_restart: "500M",
     env: {
@@ -382,24 +393,20 @@ mkdir -p $INSTALL_DIR/logs
 # Satranç taşı resimleri için dizin
 mkdir -p $INSTALL_DIR/public/img/chesspieces/wikipedia
 
-# Satranç taşı resimlerini indir
-echo -e "${YELLOW}Satranç taşı görselleri indiriliyor...${NC}"
-# Not: Gerçek uygulamada doğru URL'leri kullanmanız gerekecektir
-# Bu, sadece örnek bir yapıdır
-
-# Şu an için satranç taşı resimleri için yer tutucu oluşturalım
-for piece in P R N B Q K; do
-  # Beyaz taşlar
-  convert -size 100x100 xc:white -fill black -gravity center -pointsize 60 -annotate 0 "w$piece" $INSTALL_DIR/public/img/chesspieces/wikipedia/w$piece.png
-  # Siyah taşlar
-  convert -size 100x100 xc:black -fill white -gravity center -pointsize 60 -annotate 0 "b$piece" $INSTALL_DIR/public/img/chesspieces/wikipedia/b$piece.png
-done
-
-# Stil dosyasındaki shell komutlarını düzelt
-echo -e "${YELLOW}CSS dosyaları düzeltiliyor...${NC}"
-# style.css'deki shell komutlarını temizle
-grep -v "# style.css\|cat <<'EOF'\|EOF" $INSTALL_DIR/public/css/style.css > $INSTALL_DIR/public/css/style.css.tmp
-mv $INSTALL_DIR/public/css/style.css.tmp $INSTALL_DIR/public/css/style.css
+# Satranç taşı resimlerini oluştur
+echo -e "${YELLOW}Satranç taşı görselleri oluşturuluyor...${NC}"
+if [ -x "$(command -v convert)" ]; then
+  for piece in P R N B Q K; do
+    # Beyaz taşlar
+    convert -size 100x100 xc:white -fill black -gravity center -pointsize 60 -annotate 0 "w$piece" $INSTALL_DIR/public/img/chesspieces/wikipedia/w$piece.png
+    # Siyah taşlar
+    convert -size 100x100 xc:black -fill white -gravity center -pointsize 60 -annotate 0 "b$piece" $INSTALL_DIR/public/img/chesspieces/wikipedia/b$piece.png
+  done
+  echo -e "${GREEN}Geçici satranç taşı görselleri oluşturuldu.${NC}"
+else
+  echo -e "${YELLOW}ImageMagick bulunamadı, satranç taşı görselleri oluşturulamadı.${NC}"
+  echo -e "${YELLOW}Lütfen satranç taşı görsellerini manuel olarak yükleyin: /public/img/chesspieces/wikipedia/wP.png vb.${NC}"
+fi
 
 # NPM bağımlılıklarını yükle
 echo -e "${YELLOW}NPM bağımlılıkları yükleniyor...${NC}"
@@ -436,8 +443,13 @@ ln -sf /etc/nginx/sites-available/turksatranc.conf /etc/nginx/sites-enabled/
 # Nginx yapılandırmasını test et
 nginx -t
 
-# Nginx'i yeniden başlat
-systemctl restart nginx
+if [ $? -eq 0 ]; then
+  # Nginx'i yeniden başlat
+  systemctl restart nginx
+  echo -e "${GREEN}Nginx yapılandırması başarıyla uygulandı.${NC}"
+else
+  echo -e "${RED}Nginx yapılandırması hatalı! Lütfen /etc/nginx/sites-available/turksatranc.conf dosyasını kontrol edin.${NC}"
+fi
 
 # PM2 ile uygulamayı başlat
 echo -e "${YELLOW}PM2 ile uygulamayı başlatılıyor...${NC}"
