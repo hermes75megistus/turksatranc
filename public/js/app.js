@@ -487,24 +487,31 @@ async function loadUserInfo() {
    }
    
    // Satranç tahtasını başlat
-   function initializeBoard(orientation = 'white') {
-       // Tahta yapılandırması
-       const config = {
-           draggable: true,
-           position: 'start',
-           orientation: orientation,
-           pieceTheme: '/img/chesspieces/wikipedia/{piece}.svg',
-           onDragStart: onDragStart,
-           onDrop: onDrop,
-           onSnapEnd: onSnapEnd
-       };
-       
-       // Tahtayı oluştur
-       board = Chessboard('board', config);
-       
-       // Duyarlı tasarım için tahta boyutunu ayarla
-       window.addEventListener('resize', board.resize);
-   }
+function initializeBoard(orientation = 'white') {
+    // Tahta yapılandırması
+    const config = {
+        draggable: true,
+        position: 'start',
+        orientation: orientation,
+        pieceTheme: '/img/chesspieces/wikipedia/{piece}.svg',
+        onDragStart: onDragStart,
+        onDrop: onDrop,
+        onSnapEnd: onSnapEnd,
+        onMoveEnd: highlightLastMove
+    };
+    
+    // Tahtayı oluştur
+    board = Chessboard('board', config);
+    
+    // Duyarlı tasarım için tahta boyutunu ayarla
+    window.addEventListener('resize', board.resize);
+    
+    // Sürükleme sorununu çöz
+    const boardElement = document.getElementById('board');
+    if (boardElement) {
+        boardElement.addEventListener('touchmove', function(e) {
+            if (e.target.closest('.square-55d63') || e.target.tag
+
    
    // Süreyi biçimlendir (mm:ss)
    function formatTime(milliseconds) {
@@ -587,71 +594,78 @@ async function loadUserInfo() {
        }
    }
    
-   // Bir taş bırakıldığında çağrılan fonksiyon
-   function onDrop(source, target) {
-       // Hamlenin yasal olup olmadığını kontrol et
-       const move = game.move({
-           from: source,
-           to: target,
-           promotion: 'q' // Basitlik için daima vezire terfi et
-       });
-       
-       // Yasal değilse, taşı kaynak kareye geri döndür
-       if (move === null) return 'snapback';
-       
-       // PGN göstergesini güncelle
-       updatePGNDisplay();
-       
-       // Hamleyi sunucuya gönder
-       socket.emit('move', {
-           gameId: gameId,
-           move: { from: source, to: target },
-           fen: game.fen(),
-           pgn: game.pgn()
-       });
-       
-       // Oyun bitip bitmediğini kontrol et
-       if (game.game_over()) {
-           let result = '';
-           let resultType = '';
-           
-           if (game.in_checkmate()) {
-               result = playerColor === 'white' ? 'Şah mat! Kazandınız!' : 'Şah mat! Kaybettiniz!';
-               resultType = 'checkmate';
-           } else if (game.in_draw()) {
-               result = 'Oyun berabere bitti!';
-               resultType = 'draw';
-           } else if (game.in_stalemate()) {
-               result = 'Pat! Oyun berabere bitti!';
-               resultType = 'draw';
-           } else if (game.in_threefold_repetition()) {
-               result = 'Üç kez tekrar! Oyun berabere bitti!';
-               resultType = 'draw';
-           } else if (game.insufficient_material()) {
-               result = 'Yetersiz materyal! Oyun berabere bitti!';
-               resultType = 'draw';
-           }
-           
-           socket.emit('game_over', { gameId, result: resultType });
-           gameOver(result, resultType);
-       }
-   }
-   
+  // Bir taş bırakıldığında çağrılan fonksiyon
+function onDrop(source, target) {
+    // Hamlenin yasal olup olmadığını kontrol et
+    const move = game.move({
+        from: source,
+        to: target,
+        promotion: 'q' // Basitlik için daima vezire terfi et
+    });
+    
+    // Yasal değilse, taşı kaynak kareye geri döndür
+    if (move === null) return 'snapback';
+    
+    // PGN göstergesini güncelle
+    updatePGNDisplay();
+    
+    // Son hamleyi vurgula
+    highlightLastMove();
+    
+    // Hamleyi sunucuya gönder
+    socket.emit('move', {
+        gameId: gameId,
+        move: { from: source, to: target },
+        fen: game.fen(),
+        pgn: game.pgn()
+    });
+    
+    // Oyun bitip bitmediğini kontrol et
+    if (game.game_over()) {
+        let result = '';
+        let resultType = '';
+        
+        if (game.in_checkmate()) {
+            result = playerColor === 'white' ? 'Şah mat! Kazandınız!' : 'Şah mat! Kaybettiniz!';
+            resultType = 'checkmate';
+        } else if (game.in_draw()) {
+            result = 'Oyun berabere bitti!';
+            resultType = 'draw';
+        } else if (game.in_stalemate()) {
+            result = 'Pat! Oyun berabere bitti!';
+            resultType = 'draw';
+        } else if (game.in_threefold_repetition()) {
+            result = 'Üç kez tekrar! Oyun berabere bitti!';
+            resultType = 'draw';
+        } else if (game.insufficient_material()) {
+            result = 'Yetersiz materyal! Oyun berabere bitti!';
+            resultType = 'draw';
+        }
+        
+        socket.emit('game_over', { gameId, result: resultType });
+        gameOver(result, resultType);
+    }
+}
    // PGN göstergesini güncelle
-   function updatePGNDisplay() {
-       const pgn = game.pgn();
-       // Daha iyi okunabilirlik için PGN'i biçimlendir
-       let formattedPgn = '';
-       const moves = pgn.split(/\d+\./).filter(move => move.trim() !== '');
-       
-       moves.forEach((move, index) => {
-           formattedPgn += `${index + 1}. ${move.trim()}\n`;
-       });
-       
-       pgnDisplay.textContent = formattedPgn;
-       // En alta kaydır
-       pgnDisplay.scrollTop = pgnDisplay.scrollHeight;
-   }
+// PGN göstergesini güncelle
+function updatePGNDisplay() {
+    const pgn = game.pgn();
+    // Daha iyi okunabilirlik için PGN'i biçimlendir
+    let formattedPgn = '';
+    const moves = pgn.split(/\d+\./).filter(move => move.trim() !== '');
+    
+    moves.forEach((move, index) => {
+        formattedPgn += `${index + 1}. ${move.trim()}\n`;
+    });
+    
+    // Şah ve mat durumlarını daha belirgin yap
+    formattedPgn = formattedPgn.replace(/\+/g, '<span style="color:red">+</span>');
+    formattedPgn = formattedPgn.replace(/#/g, '<span style="color:red; font-weight:bold">#</span>');
+    
+    pgnDisplay.innerHTML = formattedPgn;
+    // En alta kaydır
+    pgnDisplay.scrollTop = pgnDisplay.scrollHeight;
+}
    
    // Taş animasyonu bittikten sonra tahta pozisyonunu güncelle
    function onSnapEnd() {
@@ -744,52 +758,55 @@ async function loadUserInfo() {
        startClock();
    }
    
-   // Rakibin hamlesi
-   function opponentMove(data) {
-       game.move({
-           from: data.move.from,
-           to: data.move.to,
-           promotion: 'q' // Basitlik için daima vezire terfi et
-       });
-       
-       board.position(game.fen());
-       
-       // Sağlanmışsa saatleri güncelle
-       if (data.whiteTime !== undefined && data.blackTime !== undefined) {
-           clocks.white = data.whiteTime;
-           clocks.black = data.blackTime;
-           whiteTimer.textContent = formatTime(clocks.white);
-           blackTimer.textContent = formatTime(clocks.black);
-       }
-       
-       // PGN göstergesini güncelle
-       updatePGNDisplay();
-       
-       // Oyunun bitip bitmediğini kontrol et
-       if (game.game_over()) {
-           let result = '';
-           let resultType = '';
-           
-           if (game.in_checkmate()) {
-               result = playerColor === 'white' ? 'Şah mat! Kaybettiniz!' : 'Şah mat! Kazandınız!';
-               resultType = 'checkmate';
-           } else if (game.in_draw()) {
-               result = 'Oyun berabere bitti!';
-               resultType = 'draw';
-           } else if (game.in_stalemate()) {
-               result = 'Pat! Oyun berabere bitti!';
-               resultType = 'draw';
-           } else if (game.in_threefold_repetition()) {
-               result = 'Üç kez tekrar! Oyun berabere bitti!';
-               resultType = 'draw';
-           } else if (game.insufficient_material()) {
-               result = 'Yetersiz materyal! Oyun berabere bitti!';
-               resultType = 'draw';
-           }
-           
-           gameOver(result, resultType);
-       }
-   }
+  // Rakibin hamlesi
+function opponentMove(data) {
+    game.move({
+        from: data.move.from,
+        to: data.move.to,
+        promotion: 'q' // Basitlik için daima vezire terfi et
+    });
+    
+    board.position(game.fen());
+    
+    // Son hamleyi vurgula
+    highlightLastMove();
+    
+    // Sağlanmışsa saatleri güncelle
+    if (data.whiteTime !== undefined && data.blackTime !== undefined) {
+        clocks.white = data.whiteTime;
+        clocks.black = data.blackTime;
+        whiteTimer.textContent = formatTime(clocks.white);
+        blackTimer.textContent = formatTime(clocks.black);
+    }
+    
+    // PGN göstergesini güncelle
+    updatePGNDisplay();
+    
+    // Oyunun bitip bitmediğini kontrol et
+    if (game.game_over()) {
+        let result = '';
+        let resultType = '';
+        
+        if (game.in_checkmate()) {
+            result = playerColor === 'white' ? 'Şah mat! Kaybettiniz!' : 'Şah mat! Kazandınız!';
+            resultType = 'checkmate';
+        } else if (game.in_draw()) {
+            result = 'Oyun berabere bitti!';
+            resultType = 'draw';
+        } else if (game.in_stalemate()) {
+            result = 'Pat! Oyun berabere bitti!';
+            resultType = 'draw';
+        } else if (game.in_threefold_repetition()) {
+            result = 'Üç kez tekrar! Oyun berabere bitti!';
+            resultType = 'draw';
+        } else if (game.insufficient_material()) {
+            result = 'Yetersiz materyal! Oyun berabere bitti!';
+            resultType = 'draw';
+        }
+        
+        gameOver(result, resultType);
+    }
+}
    
    // Oyun bitti
    function gameOver(result, resultType) {
@@ -850,3 +867,32 @@ async function loadUserInfo() {
    initializeEventListeners();
    loadUserInfo();
 });
+// Son hamleyi vurgula
+function highlightLastMove() {
+    // Tüm eski vurguları kaldır
+    $(".square-55d63").removeClass("highlight-last-move-from highlight-last-move-to highlight-check");
+    
+    // Son hamle varsa, vurgula
+    if (game.history().length > 0) {
+        const lastMove = game.history({ verbose: true })[game.history().length - 1];
+        
+        // Son hamlenin başlangıç ve bitiş karelerini vurgula
+        if (lastMove) {
+            $("." + lastMove.from).addClass("highlight-last-move-from");
+            $("." + lastMove.to).addClass("highlight-last-move-to");
+        }
+        
+        // Şah durumunu kontrol et ve vurgula
+        if (game.in_check()) {
+            const kingSquare = game.turn() === 'w' ? 
+                $('.square-55d63').filter(function() {
+                    return $(this).find('img[data-piece="wK"]').length > 0;
+                }) :
+                $('.square-55d63').filter(function() {
+                    return $(this).find('img[data-piece="bK"]').length > 0;
+                });
+            
+            kingSquare.addClass("highlight-check");
+        }
+    }
+}
