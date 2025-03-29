@@ -72,31 +72,56 @@
                 
                 const username = $('#username').val();
                 const password = $('#password').val();
+                const remember = $('#remember').is(':checked');
                 
                 // Hata mesajını temizle
                 $('#error-message').hide().text('');
+                
+                // Form elemanlarını devre dışı bırak
+                const submitBtn = $(this).find('button[type="submit"]');
+                const originalBtnText = submitBtn.html();
+                submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Giriş Yapılıyor...').prop('disabled', true);
                 
                 // API'ye giriş isteği gönder
                 $.ajax({
                     url: '/api/giris',
                     type: 'POST',
                     contentType: 'application/json',
-                    data: JSON.stringify({ username, password }),
+                    data: JSON.stringify({ 
+                        username, 
+                        password,
+                        remember 
+                    }),
                     success: function(response) {
                         if (response.success) {
                             window.location.href = response.redirect || '/';
                         } else {
+                            submitBtn.html(originalBtnText).prop('disabled', false);
                             $('#error-message').show().text(response.error || 'Giriş yapılırken bir hata oluştu.');
                         }
                     },
                     error: function(xhr) {
-                        const errorMsg = xhr.responseJSON && xhr.responseJSON.error 
-                            ? xhr.responseJSON.error 
-                            : 'Giriş yapılırken bir hata oluştu.';
+                        submitBtn.html(originalBtnText).prop('disabled', false);
+                        
+                        let errorMsg = 'Giriş yapılırken bir hata oluştu.';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
+                        } else if (xhr.status === 429) {
+                            errorMsg = 'Çok fazla giriş denemesi yaptınız. Lütfen daha sonra tekrar deneyin.';
+                        }
+                        
                         $('#error-message').show().text(errorMsg);
                     }
                 });
             });
+            
+            // URL parametrelerini kontrol et (örn. ?error=session_expired)
+            const urlParams = new URLSearchParams(window.location.search);
+            const errorParam = urlParams.get('error');
+            
+            if (errorParam === 'session_expired') {
+                $('#error-message').show().text('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
+            }
         });
     </script>
 </body>
