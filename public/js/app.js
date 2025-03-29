@@ -55,23 +55,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyFriendLinkBtn = document.getElementById('copy-friend-link');
     const closeFriendModal = document.getElementById('close-friend-modal');
     
-    // Socket bağlantısını başlatma fonksiyonu
-    const initializeSocket = function(userId) {
-        console.log("Socket bağlantısı başlatılıyor, userId:", userId || "Yok");
-        
-        // userId ile socket.io bağlantısını başlat
-        const socket = io({
-            auth: {
-               sessionId: getSessionIdFromCookie(),
-                userId: userId
-            }
-        });
-        
-        // Socket event listener'larını ayarla
-        setupSocketListeners(socket);
-        
-        return socket;
-    };
+const initializeSocket = function(userId) {
+    console.log("Socket bağlantısı başlatılıyor, userId:", userId || "Yok");
+    
+    // socket.io bağlantısını başlat
+    const socket = io({
+        auth: {
+            userId: userId
+        },
+        withCredentials: true // Cookie gönderimini aktif et
+    });
+    
+    // Socket event listener'larını ayarla
+    setupSocketListeners(socket);
+    
+    return socket;
+};
     
     // Çerezden sessionId alma fonksiyonu
     function getSessionIdFromCookie() {
@@ -269,93 +268,93 @@ document.addEventListener('DOMContentLoaded', () => {
        }
    }
    
-   // Kullanıcı bilgilerini yükle
-   async function loadUserInfo() {
-       try {
-           const response = await fetch('/api/kullanici', {
-               credentials: 'include' // Çerezleri gönderir
-           });
+ // Kullanıcı bilgilerini yükle
+async function loadUserInfo() {
+    try {
+        const response = await fetch('/api/kullanici', {
+            credentials: 'include' // Çerezleri gönderir
+        });
+        
+        if (!response.ok) {
+            // Giriş yapılmamış, giriş butonlarını göster
+            if (loginBtn && registerBtn) {
+                loginBtn.style.display = 'inline-block';
+                registerBtn.style.display = 'inline-block';
+            }
+            
+            if (logoutBtn) {
+                logoutBtn.style.display = 'none';
+            }
+            
+            // Oyun butonlarını devre dışı bırak
+            startBtn.disabled = true;
+            if (friendBtn) friendBtn.style.display = 'none';
+            
+            statusDiv.innerHTML = 'Oynamak için <a href="/giris">giriş</a> yapmalısınız veya <a href="/kayit">hesap oluşturun</a>.';
+            
+            usernameDisplay.textContent = 'Ziyaretçi';
+            eloDisplay.textContent = '-';
+            playerName.textContent = 'Oyuncu';
+            
+            return;
+        }
+        
+        const userData = await response.json();
            
-           if (!response.ok) {
-               // Giriş yapılmamış, giriş butonlarını göster
-               if (loginBtn && registerBtn) {
-                   loginBtn.style.display = 'inline-block';
-                   registerBtn.style.display = 'inline-block';
-               }
-               
-               if (logoutBtn) {
-                   logoutBtn.style.display = 'none';
-               }
-               
-               // Oyun butonlarını devre dışı bırak
-               startBtn.disabled = true;
-               if (friendBtn) friendBtn.style.display = 'none';
-               
-               statusDiv.innerHTML = 'Oynamak için <a href="/giris">giriş</a> yapmalısınız veya <a href="/kayit">hesap oluşturun</a>.';
-               
-               usernameDisplay.textContent = 'Ziyaretçi';
-               eloDisplay.textContent = '-';
-               playerName.textContent = 'Oyuncu';
-               
-               return;
-           }
-           
-           const userData = await response.json();
-           
-           // Kullanıcı bilgilerini göster
-           usernameDisplay.textContent = userData.username;
-           eloDisplay.textContent = userData.elo;
-           playerName.textContent = userData.username;
-           
-           // Kullanıcı kimliğini data attribute olarak sakla
-           if (userData._id) {
-               usernameDisplay.setAttribute('data-id', userData._id);
-           }
-           
-           // Giriş yapılmış, çıkış butonunu göster
-           if (loginBtn && registerBtn) {
-               loginBtn.style.display = 'none';
-               registerBtn.style.display = 'none';
-           }
-           
-           if (logoutBtn) {
-               logoutBtn.style.display = 'inline-block';
-           }
-           
-           // Arkadaş daveti butonunu göster
-           if (friendBtn) {
-               friendBtn.style.display = 'inline-block';
-           }
-           
-           console.log("Kullanıcı bilgisi yüklendi:", userData.username);
-           
-           // Socket'i kullanıcı kimliği ile başlat
-           socket = initializeSocket(userData._id);
-           
-       } catch (error) {
-           console.error('Kullanıcı bilgisi yükleme hatası:', error);
-           
-           // Hata durumunda giriş butonlarını göster
-           if (loginBtn && registerBtn) {
-               loginBtn.style.display = 'inline-block';
-               registerBtn.style.display = 'inline-block';
-           }
-           
-           if (logoutBtn) {
-               logoutBtn.style.display = 'none';
-           }
-           
-           // Oyun butonlarını devre dışı bırak
-           startBtn.disabled = true;
-           if (friendBtn) friendBtn.style.display = 'none';
-           
-           statusDiv.innerHTML = 'Oynamak için <a href="/giris">giriş</a> yapmalısınız veya <a href="/kayit">hesap oluşturun</a>.';
-           
-           usernameDisplay.textContent = 'Ziyaretçi';
-           eloDisplay.textContent = '-';
-           playerName.textContent = 'Oyuncu';
-       }
-   }
+          // Kullanıcı bilgilerini göster
+        usernameDisplay.textContent = userData.username;
+        eloDisplay.textContent = userData.elo;
+        playerName.textContent = userData.username;
+        
+        // Kullanıcı kimliğini data attribute olarak sakla
+        if (userData._id) {
+            usernameDisplay.setAttribute('data-id', userData._id);
+        }
+        
+        // Giriş yapılmış, çıkış butonunu göster
+        if (loginBtn && registerBtn) {
+            loginBtn.style.display = 'none';
+            registerBtn.style.display = 'none';
+        }
+        
+        if (logoutBtn) {
+            logoutBtn.style.display = 'inline-block';
+        }
+        
+        // Arkadaş daveti butonunu göster
+        if (friendBtn) {
+            friendBtn.style.display = 'inline-block';
+        }
+        
+        console.log("Kullanıcı bilgisi yüklendi:", userData.username);
+        
+        // Socket'i kullanıcı kimliği ile başlat
+        socket = initializeSocket(userData._id);
+        
+    } catch (error) {
+        console.error('Kullanıcı bilgisi yükleme hatası:', error);
+        
+        // Hata durumunda giriş butonlarını göster
+        if (loginBtn && registerBtn) {
+            loginBtn.style.display = 'inline-block';
+            registerBtn.style.display = 'inline-block';
+        }
+        
+        if (logoutBtn) {
+            logoutBtn.style.display = 'none';
+        }
+        
+        // Oyun butonlarını devre dışı bırak
+        startBtn.disabled = true;
+        if (friendBtn) friendBtn.style.display = 'none';
+        
+        statusDiv.innerHTML = 'Oynamak için <a href="/giris">giriş</a> yapmalısınız veya <a href="/kayit">hesap oluşturun</a>.';
+        
+        usernameDisplay.textContent = 'Ziyaretçi';
+        eloDisplay.textContent = '-';
+        playerName.textContent = 'Oyuncu';
+    }
+}
    
    // Çıkış işlemi
    async function logout() {
