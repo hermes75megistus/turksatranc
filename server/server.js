@@ -9,7 +9,7 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
-const { v4: uuidv4 } = require('uuid'); // UUID için paketi ekliyoruz
+const { v4: uuidv4 } = require('uuid');
 
 // Load environment variables
 dotenv.config();
@@ -38,7 +38,6 @@ mongoose.connect(MONGODB_URI, {
   // Veritabanı bağlantı kontrolü
   return mongoose.connection.db.admin().ping();
 })
-.then(() => console.log('MongoDB veritabanı yanıt veriyor'))
 .catch(err => {
   console.error('MongoDB bağlantı hatası:', err);
   console.error('MongoDB bağlantı hatası detayları:', err);
@@ -185,13 +184,14 @@ const rateLimiter = (req, res, next) => {
   next();
 };
 
-// Session yönetimi - FIX: Oturum ayarlarını düzelttik
+// Session yönetimi - Düzeltilmiş oturum ayarları
 const sessionStore = MongoStore.create({ 
   mongoUrl: MONGODB_URI,
-  ttl: 60 * 60 * 24 // 1 gün
+  ttl: 60 * 60 * 24, // 1 gün
+  autoRemove: 'native'
 });
 
-app.use(session({
+const sessionMiddleware = session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false, 
@@ -203,32 +203,60 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production', // Production'da HTTPS kullan
     path: '/' // Path'i açıkça belirt
   }
-}));
+});
 
-// Auth middleware - Giriş yapılmamışsa giriş sayfasına yönlendir
+app.use(sessionMiddleware);
+
+// Socket.io'nun session'a erişmesi için middleware paylaş
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, {}, next);
+});
+
+// Auth middleware - Düzeltilmiş kimlik doğrulama
 const isAuthenticated = async (req, res, next) => {
   console.log("Auth middleware çalıştı, session:", req.session.userId ? "Var" : "Yok");
   
   // Eğer oturum zaten varsa devam et
   if (req.session.userId) {
-    return next();
+    try {
+      // Kullanıcının varlığını doğrula
+      const user = await User.findById(req.session.userId);
+      if (!user) {
+        // Kullanıcı bulunamadı, oturumu temizle
+        req.session.destroy();
+        
+        if (req.path.startsWith('/api/')) {
+          return res.status(401).json({ error: 'Oturum geçersiz', redirect: '/giris' });
+        } else {
+          return res.redirect('/giris');
+        }
+      }
+      return next();
+    } catch (err) {
+      console.error("Kullanıcı doğrulama hatası:", err);
+      if (req.path.startsWith('/api/')) {
+        return res.status(500).json({ error: 'Sunucu hatası', redirect: '/giris' });
+      } else {
+        return res.redirect('/giris');
+      }
+    }
   }
   
   // API istekleri için 401 hatası döndür
   if (req.path.startsWith('/api/') && 
       req.path !== '/api/giris' && 
       req.path !== '/api/kayit') {
-    
-    if (req.xhr || (req.headers.accept && req.headers.accept.indexOf('json') > -1)) {
-      return res.status(401).json({ error: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
-    }
+    return res.status(401).json({ error: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
   }
   
   // HTML sayfası istekleri için giriş sayfasına yönlendir
   if (!req.path.startsWith('/api/') && 
       req.path !== '/giris' && 
       req.path !== '/kayit' && 
-      req.path !== '/') {
+      req.path !== '/' &&
+      !req.path.startsWith('/css/') &&
+      !req.path.startsWith('/img/') &&
+      !req.path.startsWith('/js/')) {
     return res.redirect('/giris');
   }
   
@@ -251,6 +279,7 @@ app.get('/kayit', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/kayit.html'));
 });
 
+// Düzeltilmiş kayıt API endpoint'i
 app.post('/api/kayit', async (req, res) => {
   try {
     console.log('Kayıt isteği alındı:', req.body);
@@ -300,17 +329,34 @@ app.post('/api/kayit', async (req, res) => {
     await newUser.save();
     console.log('Yeni kullanıcı kaydedildi:', username);
     
-    // Oturum başlatma
-    req.session.userId = newUser._id;
-    req.session.username = newUser.username;
-    
-    res.status(201).json({ success: true, redirect: '/' });
+    // Önceki oturumu temizle ve yeni oturum başlat
+    req.session.regenerate(function(err) {
+      if (err) {
+        console.error('Oturum yenileme hatası:', err);
+        return res.status(500).json({ error: 'Kayıt sırasında bir hata oluştu' });
+      }
+
+      // Yeni oturum başlat
+      req.session.userId = newUser._id;
+      req.session.username = newUser.username;
+      
+      // Oturumu kaydet
+      req.session.save(function(err) {
+        if (err) {
+          console.error('Oturum kaydetme hatası:', err);
+          return res.status(500).json({ error: 'Kayıt sırasında bir hata oluştu' });
+        }
+        
+        res.status(201).json({ success: true, redirect: '/' });
+      });
+    });
   } catch (error) {
     console.error('Kayıt hatası:', error);
     res.status(500).json({ error: 'Kayıt sırasında bir hata oluştu', details: error.message });
   }
 });
 
+// Düzeltilmiş giriş API endpoint'i
 app.post('/api/giris', rateLimiter, async (req, res) => {
   try {
     console.log('Giriş isteği alındı:', req.body);
@@ -346,26 +392,35 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
     }
     
     // Önceki oturumu temizle
-    if (req.session.userId) {
-      console.log(`Önceki oturum temizleniyor: ${req.session.userId}`);
-      req.session.userId = null;
-      req.session.username = null;
-    }
-    
-    // Yeni oturum başlat
-    req.session.userId = user._id;
-    req.session.username = user.username;
-    
-    console.log('Kullanıcı girişi yapıldı:', username, 'Session ID:', req.session.id);
-    
-    res.json({ 
-      success: true, 
-      redirect: '/',
-      user: {
-        _id: user._id,
-        username: user.username,
-        elo: user.elo
+    req.session.regenerate(function(err) {
+      if (err) {
+        console.error('Oturum yenileme hatası:', err);
+        return res.status(500).json({ error: 'Giriş sırasında bir hata oluştu' });
       }
+
+      // Yeni oturum başlat
+      req.session.userId = user._id;
+      req.session.username = user.username;
+      
+      // Oturumu kaydet
+      req.session.save(function(err) {
+        if (err) {
+          console.error('Oturum kaydetme hatası:', err);
+          return res.status(500).json({ error: 'Giriş sırasında bir hata oluştu' });
+        }
+        
+        console.log('Kullanıcı girişi yapıldı:', username, 'Session ID:', req.session.id);
+        
+        res.json({ 
+          success: true, 
+          redirect: '/',
+          user: {
+            _id: user._id,
+            username: user.username,
+            elo: user.elo
+          }
+        });
+      });
     });
   } catch (error) {
     console.error('Giriş hatası:', error);
@@ -375,6 +430,10 @@ app.post('/api/giris', rateLimiter, async (req, res) => {
 
 app.get('/api/cikis', (req, res) => {
   console.log("Çıkış isteği, session:", req.session.userId ? "Var" : "Yok");
+  
+  if (!req.session.userId) {
+    return res.json({ success: true, redirect: '/giris' });
+  }
   
   req.session.destroy(err => {
     if (err) {
@@ -391,6 +450,7 @@ app.get('/profil', isAuthenticated, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/profil.html'));
 });
 
+// Düzeltilmiş kullanıcı bilgisi API endpoint'i
 app.get('/api/kullanici', async (req, res) => {
   try {
     // Session'da userId yoksa giriş sayfasına yönlendir
@@ -408,8 +468,7 @@ app.get('/api/kullanici', async (req, res) => {
     if (!user) {
       console.log("Kullanıcı bulunamadı, hata dönülüyor");
       // Session'da userId var ama kullanıcı bulunamıyorsa session'ı temizle
-      req.session.userId = null;
-      req.session.username = null;
+      req.session.destroy();
       return res.status(401).json({
         error: 'Kullanıcı bulunamadı',
         redirect: '/giris'
@@ -753,7 +812,7 @@ app.post('/api/turnuvalar/:id/baslat', isAuthenticated, async (req, res) => {
    }
    
    // Eşleşmeleri oluştur
-   const matches = createTournamentMatches(tournament.participants, tournament.timeControl);
+   const matches = await createTournamentMatches(tournament);
    
    // Turnuvayı başlat
    await Tournament.findByIdAndUpdate(tournamentId, {
@@ -774,10 +833,10 @@ app.post('/api/turnuvalar/:id/baslat', isAuthenticated, async (req, res) => {
 });
 
 // Turnuva eşleşmeleri oluşturma fonksiyonu
-async function createTournamentMatches(participants, timeControl) {
+async function createTournamentMatches(tournament) {
  try {
    // Katılımcıları karıştır
-   const shuffledParticipants = [...participants].sort(() => Math.random() - 0.5);
+   const shuffledParticipants = [...tournament.participants].sort(() => Math.random() - 0.5);
    
    // Eşleşmeleri oluştur
    const matchCount = Math.floor(shuffledParticipants.length / 2);
@@ -791,7 +850,7 @@ async function createTournamentMatches(participants, timeControl) {
      const newGame = new Game({
        whitePlayer: whitePlayer,
        blackPlayer: blackPlayer,
-       timeControl: timeControl,
+       timeControl: tournament.timeControl,
        startTime: new Date(),
        tournamentId: tournament._id
      });
@@ -807,15 +866,31 @@ async function createTournamentMatches(participants, timeControl) {
  }
 }
 
-// Ana sayfa ve diğer sayfalar
-app.get('/', (req, res) => {
- res.sendFile(path.join(__dirname, '../public/index.html'));
+// Geçmiş oyunları getir
+app.get('/api/gecmis-oyunlar', isAuthenticated, async (req, res) => {
+ try {
+   const limit = parseInt(req.query.limit) || 20;
+   
+   const games = await Game.find({
+     $or: [
+       { whitePlayer: req.session.userId },
+       { blackPlayer: req.session.userId }
+     ],
+     result: { $ne: 'ongoing' }
+   })
+   .sort({ endTime: -1 })
+   .limit(limit)
+   .populate('whitePlayer', 'username')
+   .populate('blackPlayer', 'username');
+   
+   res.json(games);
+ } catch (error) {
+   console.error('Geçmiş oyunlar alma hatası:', error);
+   res.status(500).json({ error: 'Geçmiş oyunlar alınırken bir hata oluştu', details: error.message });
+ }
 });
 
-app.get('/siralama', isAuthenticated, (req, res) => {
- res.sendFile(path.join(__dirname, '../public/siralama.html'));
-});
-
+// Sıralama verilerini getir
 app.get('/api/siralama', isAuthenticated, async (req, res) => {
  try {
    const page = parseInt(req.query.page) || 1;
@@ -852,36 +927,45 @@ app.get('/api/siralama', isAuthenticated, async (req, res) => {
  }
 });
 
+// Ana sayfa ve diğer sayfalar
+app.get('/', (req, res) => {
+ res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+app.get('/siralama', isAuthenticated, (req, res) => {
+ res.sendFile(path.join(__dirname, '../public/siralama.html'));
+});
+
 app.get('/gecmis-oyunlar', isAuthenticated, (req, res) => {
  res.sendFile(path.join(__dirname, '../public/gecmis-oyunlar.html'));
 });
 
-app.get('/api/gecmis-oyunlar', isAuthenticated, async (req, res) => {
- try {
-   const limit = parseInt(req.query.limit) || 20;
-   
-   const games = await Game.find({
-     $or: [
-       { whitePlayer: req.session.userId },
-       { blackPlayer: req.session.userId }
-     ],
-     result: { $ne: 'ongoing' }
-   })
-   .sort({ endTime: -1 })
-   .limit(limit)
-   .populate('whitePlayer', 'username')
-   .populate('blackPlayer', 'username');
-   
-   res.json(games);
- } catch (error) {
-   console.error('Geçmiş oyunlar alma hatası:', error);
-   res.status(500).json({ error: 'Geçmiş oyunlar alınırken bir hata oluştu', details: error.message });
- }
+// 404 - Sayfa bulunamadı
+app.use((req, res, next) => {
+  // API istekleri için 404 JSON yanıtı
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint bulunamadı' });
+  }
+  
+  // Statik dosya istekleri dışındaki HTML sayfaları için 404 sayfası
+  if (!req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg)$/)) {
+    return res.status(404).sendFile(path.join(__dirname, '../public/404.html'));
+  }
+  
+  next();
 });
 
-// Default route
-app.get('*', (req, res) => {
- res.redirect('/');
+// Genel hata yakalama
+app.use((err, req, res, next) => {
+  console.error('Server hatası:', err);
+  
+  // API istekleri için JSON hata yanıtı
+  if (req.path.startsWith('/api/')) {
+    return res.status(500).json({ error: 'Sunucu hatası', details: process.env.NODE_ENV === 'development' ? err.message : null });
+  }
+  
+  // HTML sayfaları için 500 sayfası
+  res.status(500).sendFile(path.join(__dirname, '../public/500.html'));
 });
 
 // Socket.io bağlantısını kur
@@ -918,9 +1002,35 @@ process.on('unhandledRejection', (reason, promise) => {
  console.error('İşlenmeyen Reddetme:', reason);
 });
 
+// Graceful shutdown - SIGTERM ve SIGINT sinyallerini yakala
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+function gracefulShutdown() {
+  console.log('Sunucu kapatılıyor...');
+  
+  // Aktif bağlantıları kapat
+  server.close(() => {
+    console.log('HTTP sunucusu kapatıldı');
+    
+    // MongoDB bağlantısını kapat
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB bağlantısı kapatıldı');
+      process.exit(0);
+    });
+  });
+  
+  // 10 saniye içinde kapanmazsa zorla kapat
+  setTimeout(() => {
+    console.error('Bağlantılar zamanında kapatılamadı, zorla kapatılıyor');
+    process.exit(1);
+  }, 10000);
+}
+
 // Sunucuyu başlat
 server.listen(PORT, () => {
  console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
+ console.log(`Ortam: ${process.env.NODE_ENV || 'development'}`);
 });
 
 // Modül dışa aktarımı
