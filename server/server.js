@@ -184,11 +184,18 @@ const rateLimiter = (req, res, next) => {
   next();
 };
 
-// Session yönetimi - Düzeltilmiş oturum ayarları
+// Fix for authentication issues in server.js
+// Add this code to the server.js file, replacing the existing session middleware configuration
+
+// Session configuration with improved settings for reliability
 const sessionStore = MongoStore.create({ 
   mongoUrl: MONGODB_URI,
-  ttl: 60 * 60 * 24, // 1 gün
-  autoRemove: 'native'
+  ttl: 60 * 60 * 24, // 1 day
+  autoRemove: 'native',
+  touchAfter: 3600, // update session only once per hour if no changes
+  crypto: {
+    secret: SESSION_SECRET // encrypt session data
+  }
 });
 
 const sessionMiddleware = session({
@@ -197,70 +204,85 @@ const sessionMiddleware = session({
   saveUninitialized: false, 
   store: sessionStore,
   cookie: { 
-    maxAge: 1000 * 60 * 60 * 24, // 1 gün
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production', // Production'da HTTPS kullan
-    path: '/' // Path'i açıkça belirt
-  }
+    secure: process.env.NODE_ENV === 'production', // Use HTTPS in production
+    path: '/'
+  },
+  name: 'turksatranc.sid' // Custom session name
 });
 
 app.use(sessionMiddleware);
 
-// Socket.io'nun session'a erişmesi için middleware paylaş
-io.use((socket, next) => {
-  sessionMiddleware(socket.request, {}, next);
+// Improve CORS handling
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
 });
 
-// Auth middleware - Düzeltilmiş kimlik doğrulama
+// Debug middleware to log session issues
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Session debug - Path: ${req.path}, Session ID: ${req.session.id || 'none'}, User ID: ${req.session.userId || 'none'}`);
+  }
+  next();
+});
+
+// Replace the existing isAuthenticated middleware with this improved version
 const isAuthenticated = async (req, res, next) => {
-  console.log("Auth middleware çalıştı, session:", req.session.userId ? "Var" : "Yok");
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
   
-  // Eğer oturum zaten varsa devam et
-  if (req.session.userId) {
+  // Skip authentication for static files and login/register routes
+  if (req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg)$/) ||
+      req.path === '/giris' || 
+      req.path === '/kayit' ||
+      req.path === '/api/giris' || 
+      req.path === '/api/kayit') {
+    return next();
+  }
+
+  // Check if user is authenticated
+  if (req.session && req.session.userId) {
     try {
-      // Kullanıcının varlığını doğrula
+      // Verify user exists
       const user = await User.findById(req.session.userId);
-      if (!user) {
-        // Kullanıcı bulunamadı, oturumu temizle
-        req.session.destroy();
-        
-        if (req.path.startsWith('/api/')) {
-          return res.status(401).json({ error: 'Oturum geçersiz', redirect: '/giris' });
-        } else {
-          return res.redirect('/giris');
-        }
+      if (user) {
+        // Store user info for later use
+        req.user = user;
+        return next();
       }
-      return next();
+      
+      // User not found, clear session
+      req.session.destroy();
     } catch (err) {
-      console.error("Kullanıcı doğrulama hatası:", err);
-      if (req.path.startsWith('/api/')) {
-        return res.status(500).json({ error: 'Sunucu hatası', redirect: '/giris' });
-      } else {
-        return res.redirect('/giris');
-      }
+      console.error("User verification error:", err);
     }
   }
   
-  // API istekleri için 401 hatası döndür
-  if (req.path.startsWith('/api/') && 
-      req.path !== '/api/giris' && 
-      req.path !== '/api/kayit') {
-    return res.status(401).json({ error: 'Giriş yapmanız gerekiyor', redirect: '/giris' });
+  // API requests should return JSON error
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ 
+      error: 'Authentication required',
+      redirect: '/giris'
+    });
   }
   
-  // HTML sayfası istekleri için giriş sayfasına yönlendir
-  if (!req.path.startsWith('/api/') && 
-      req.path !== '/giris' && 
-      req.path !== '/kayit' && 
-      req.path !== '/' &&
-      !req.path.startsWith('/css/') &&
-      !req.path.startsWith('/img/') &&
-      !req.path.startsWith('/js/')) {
+  // For normal page requests, redirect to login
+  if (!req.path.startsWith('/') || req.path !== '/') {
     return res.redirect('/giris');
   }
   
-  // Ana sayfa ve kayıt/giriş sayfaları için devam et
+  // Allow access to homepage
   next();
 };
 
